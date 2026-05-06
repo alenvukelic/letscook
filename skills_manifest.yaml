@@ -1,0 +1,96 @@
+skills:
+  - name: product
+    path: skills/product
+    description: "Product vision, roadmap, MVP, acceptance criteria, release gating."
+    trigger_words: ["roadmap", "mvp", "acceptance", "prioritize"]
+    goals:
+      - "Define MVP and acceptance criteria for features"
+      - "Create release checklist and gating rules"
+      - "Prioritize backlog items for sprints"
+
+  - name: backend
+    path: skills/backend
+    description: "Backend APIs, auth, sanitization, media pipeline, business logic."
+    trigger_words: ["api", "sanitize", "upload", "auth", "ratings"]
+    goals:
+      - "Produce API contracts for endpoints"
+      - "Define server-side WYSIWYG sanitization rules"
+      - "Implement media upload validation and processing"
+      - "Implement rating and complexity aggregation logic"
+
+  - name: frontend
+    path: skills/frontend
+    description: "Preact UI, WYSIWYG editor integration, i18n, client validation."
+    trigger_words: ["preact", "wysiwyg", "i18n", "ui", "paste-image"]
+    goals:
+      - "Build Preact components and editor integration"
+      - "Implement client-side validation and i18n hooks"
+      - "Implement servings scaling UI and complexity display"
+
+  - name: database
+    path: skills/database
+    description: "Schema design, migrations, seeds, indexes, full-text search."
+    trigger_words: ["schema", "migration", "seed", "index", "search"]
+    goals:
+      - "Design DB schema and migration plan for Postgres"
+      - "Create seed data for canonical ingredients and translations"
+      - "Define indexes and full-text search configuration"
+
+  - name: devops
+    path: skills/devops
+    description: "Ubuntu and nginx deployment, CI/CD, backups, monitoring, SSL."
+    trigger_words: ["nginx", "deploy", "ci", "backup", "monitoring"]
+    goals:
+      - "Provide nginx and Ubuntu deployment checklist"
+      - "Define CI/CD pipeline and database backup procedures"
+      - "Specify monitoring, logging, and alerting requirements"
+
+  - name: security
+    path: skills/security
+    description: "XSS and CSRF protections, upload controls, auth policies, security testing."
+    trigger_words: ["xss", "csrf", "upload", "pentest", "rate-limit"]
+    goals:
+      - "Define sanitization and CSRF protections"
+      - "Specify upload validation, MIME checks, and antivirus scanning"
+      - "Provide security scan and penetration test checklist"
+
+  - name: moderation
+    path: skills/moderation
+    description: "Reporting workflow, soft-delete rules, appeals, spam controls."
+    trigger_words: ["report", "moderation", "soft-delete", "appeal", "spam"]
+    goals:
+      - "Define report and triage workflow"
+      - "Specify soft-delete rules and audit logging"
+      - "Define appeals and escalation process"
+
+  - name: localization
+    path: skills/localization
+    description: "i18n workflow, ingredient translations, fallback rules."
+    trigger_words: ["i18n", "translation", "fallback", "locale", "ingredients"]
+    goals:
+      - "Define translation workflow for UI and content"
+      - "Provide seed translation process for ingredients"
+      - "Define fallback and unit formatting rules"
+
+  - name: qa
+    path: skills/qa
+    description: "Test plans for unit, integration, e2e, load, and security testing."
+    trigger_words: ["tests", "e2e", "load", "security-test", "ci-gate"]
+    goals:
+      - "Create test matrix and example test cases"
+      - "Define CI test gating rules"
+      - "Provide load and security test scenarios"
+
+  - name: community
+    path: skills/community
+    description: "CONTRIBUTING, code of conduct, PR and issue triage, onboarding."
+    trigger_words: ["contributing", "review", "triage", "conduct", "onboarding"]
+    goals:
+      - "Maintain CONTRIBUTING and CODE_OF_CONDUCT templates"
+      - "Define PR and issue triage workflow"
+      - "Provide onboarding checklist for contributors"
+
+loader:
+  default_goals: ["start", "diagnose", "implement"]
+  allow_slash_load: true
+  admin_only_load: true

@@ -1,8 +1,8 @@
 # AGENTS.md
 
 ## Current State
-- The repository is still being bootstrapped. Right now it contains `AGENTS.md` and editable legal docs under `legal/`; there is no application code, build config, or test config yet.
-- Treat this file and the existing legal markdown files as the current repo-specific source of truth until real code and config are added.
+- The repository is still being bootstrapped. Right now it contains repo guidance docs, a planned skill manifest under `skills_manifest.yaml`, skill folders under `skills/`, and editable legal docs under `legal/`; there is no application code, build config, or test config yet.
+- Treat this file, `skills_manifest.yaml`, the files under `skills/`, and the existing legal markdown files as the current repo-specific source of truth until real code and config are added.
 
 ## Planned System Direction
 - Product intent: a multilingual cookbook web app for adding, sharing, and searching recipes.
@@ -16,6 +16,7 @@
 - `commit` or `komit` means push work to GitHub. Do not push to GitHub unless the user explicitly says `commit` or `komit`.
 - Keep `AGENTS.md` updated when workflow rules, repository structure, or important constraints change.
 - Keep `README.md` updated with user-facing project description, requirements, setup, and usage notes. Do not put agent workflow instructions in `README.md`.
+- Keep `skills_manifest.yaml` and the files under `skills/` aligned with the planned architecture when responsibilities or boundaries change.
 - Ask before doing anything that conflicts with existing user instructions, current worktree changes, or the guidance in this file.
 - Do not rewrite, revert, or delete unrelated user changes without permission.
 

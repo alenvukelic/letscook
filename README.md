@@ -6,7 +6,7 @@ LetsCook is a planned multilingual cookbook web app for adding, sharing, and sea
 
 This repository is still in the bootstrap stage.
 
-- Current contents: `AGENTS.md` and legal documents under `legal/`
+- Current contents: repo guidance docs, `skills_manifest.yaml`, skill folders under `skills/`, and legal documents under `legal/`
 - Current app status: no backend, frontend, database schema, build config, or test config has been added yet
 
 ## Planned Product Scope
@@ -39,6 +39,8 @@ These are the intended starting technologies and may evolve as the implementatio
 .
 |-- AGENTS.md
 |-- README.md
+|-- skills_manifest.yaml
+|-- skills/
 `-- legal/
     |-- image-rights.md
     |-- moderation.md
@@ -67,5 +69,7 @@ When application code is added, this section should be expanded with exact setup
 ## Roadmap Notes
 
 The initial system blueprint expects core tables and features around users, recipes, canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, and audit history.
+
+Planning guidance for major work areas is organized under `skills/` and indexed by `skills_manifest.yaml`.
 
 As implementation begins, this README should stay focused on project overview, setup, and operational requirements, while deeper development guidance remains in `AGENTS.md`.
