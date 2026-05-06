@@ -15,6 +15,7 @@
 - Make local git commits for completed changes unless the user says otherwise.
 - `commit` or `komit` means push work to GitHub. Do not push to GitHub unless the user explicitly says `commit` or `komit`.
 - Keep `AGENTS.md` updated when workflow rules, repository structure, or important constraints change.
+- Keep `README.md` updated with user-facing project description, requirements, setup, and usage notes. Do not put agent workflow instructions in `README.md`.
 - Ask before doing anything that conflicts with existing user instructions, current worktree changes, or the guidance in this file.
 - Do not rewrite, revert, or delete unrelated user changes without permission.
 
