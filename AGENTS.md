@@ -20,6 +20,7 @@
 
 ## Git Remote
 - GitHub repository: `https://github.com/alenvukelic/letscook`
+- Primary branch is `main`.
 - Local work should stay local until the user explicitly authorizes a GitHub push with `commit` or `komit`.
 
 ## Product Constraints
