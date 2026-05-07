@@ -15,6 +15,9 @@ This repository is still in the bootstrap stage.
 - Recipe browsing and search across title, ingredients, tags, and steps
 - Ingredient-based search for recipes matching all or most selected ingredients
 - Ratings, community complexity votes, favorites, comments, and recipe relationships
+- Role-based moderation with registered users, moderators, administrators, and a `SuperAdmin`
+- Hidden recipes and comments for moderation cleanup, plus administrator-only permanent removal and user bans
+- Action tracking for important user and moderation events
 - Localization support, with Croatian, English, and German as the initial target languages
 
 ## Planned Technology
@@ -31,6 +34,8 @@ These are the intended starting technologies and may evolve as the implementatio
 - Do not allow external image embedding; images should be uploaded instead
 - Sanitize recipe HTML on the server side
 - Validate media MIME type and size, normalize filenames, store files outside webroot, generate optimized variants, and run antivirus scanning
+- Enforce server-side role-based permissions for moderators, administrators, and `SuperAdmin`
+- Keep action definitions in `actions` and event records in `action_log`, including timestamp, IP, action type, and structured details
 - Preserve legal content in `legal/privacy.md`, `legal/terms.md`, `legal/image-rights.md`, and `legal/moderation.md`
 
 ## Repository Layout
@@ -68,7 +73,7 @@ When application code is added, this section should be expanded with exact setup
 
 ## Roadmap Notes
 
-The initial system blueprint expects core tables and features around users, recipes, canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, and audit history.
+The initial system blueprint expects core tables and features around users, recipes, canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, audit history, action definitions, and action logging.
 
 Planning guidance for major work areas is organized under `skills/` and indexed by `skills_manifest.yaml`.
 
