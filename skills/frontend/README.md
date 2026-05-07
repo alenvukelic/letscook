@@ -7,6 +7,7 @@ Use this skill for Preact UI planning, recipe editor flows, i18n behavior, and c
 ## Guardrails
 
 - Preserve the planned multilingual cookbook UX from `AGENTS.md`
+- Use Vite + Preact + TypeScript as the starting frontend stack
 - Support recipe creation fields, servings scaling, and complexity display
 - Treat client validation as additive; required sanitization still happens on the server
 

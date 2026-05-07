@@ -23,8 +23,8 @@ This repository is still in the bootstrap stage.
 ## Planned Technology
 
 - PostgreSQL
-- Python backend
-- Preact frontend
+- FastAPI Python backend with SQLAlchemy, Alembic, and Pydantic
+- Vite + Preact + TypeScript frontend
 - nginx on Ubuntu
 
 These are the intended starting technologies and may evolve as the implementation takes shape.
@@ -35,7 +35,8 @@ These are the intended starting technologies and may evolve as the implementatio
 - Sanitize recipe HTML on the server side
 - Validate media MIME type and size, normalize filenames, store files outside webroot, generate optimized variants, and run antivirus scanning
 - Enforce server-side role-based permissions for moderators, administrators, and `SuperAdmin`
-- Keep action definitions in `actions` and event records in `action_log`, including timestamp, IP, action type, and structured details
+- Use JWT access tokens plus secure cookie-based rotated refresh tokens
+- Keep unified audit/activity definitions in `actions` and event records in `action_log`, including timestamp, IP, action type, actor, target record, reason, and structured details
 - Preserve legal content in `legal/privacy.md`, `legal/terms.md`, `legal/image-rights.md`, and `legal/moderation.md`
 
 ## Repository Layout
@@ -73,7 +74,7 @@ When application code is added, this section should be expanded with exact setup
 
 ## Roadmap Notes
 
-The initial system blueprint expects core tables and features around users, recipes, canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, audit history, action definitions, and action logging.
+The initial system blueprint expects core tables and features around users, categories, tags, recipe tags, recipes, canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, action definitions, and unified audit/activity logging.
 
 Planning guidance for major work areas is organized under `skills/` and indexed by `skills_manifest.yaml`.
 

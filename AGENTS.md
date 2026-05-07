@@ -6,7 +6,7 @@
 
 ## Planned System Direction
 - Product intent: a multilingual cookbook web app for adding, sharing, and searching recipes.
-- Planned stack from the original repo notes: PostgreSQL, Python backend, Preact frontend, nginx on Ubuntu.
+- Planned stack: PostgreSQL; FastAPI Python backend with SQLAlchemy, Alembic, and Pydantic; Vite + Preact + TypeScript frontend; nginx on Ubuntu.
 - Initial languages called out in the original notes: Croatian, English, German.
 - Treat these as target architecture and product constraints, not as already-implemented code.
 - Use the initial product, API, and database notes below as the default starting blueprint unless later code or user instructions override them.
@@ -33,15 +33,18 @@
 
 ## Domain Notes
 - Core product areas from the original notes: recipes, ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, moderation, and localization.
-- User roles now include registered users, moderators, administrators, and a `SuperAdmin` account with initial `users.id = 1`.
-- Registered users manage only their own recipes, comments, favorites, and other user-owned actions.
-- Moderators can hide other users' recipes and comments from public and regular user views for cleanup, duplication, or policy reasons.
-- Administrators can view hidden recipes and comments, permanently remove them, ban users, and promote users to moderator.
-- `SuperAdmin` can do everything, including promoting users to moderator and promoting moderators to administrator.
+- User roles are `user`, `moderator`, `administrator`, and `superadmin`.
+- The initial `superadmin` account is `users.id = 1` and should be protected from deletion, banning, or demotion.
 - Recipe creation is expected to support structured ingredients, servings, tags, category, rich-text steps, and optional main image.
 - The original notes expect both author complexity and community complexity to be stored and displayed.
 - Search is expected to cover title, ingredients, tags, and steps, with ingredient-based matching as an important use case.
 - Recipes may have parent/child relationships to represent variations or clones.
+
+## Role Permissions
+- `user`: can register, log in, manage only their own recipes and comments, save favorites, rate recipes, vote complexity, and manage other user-owned actions.
+- `moderator`: has all `user` rights and can hide other users' recipes and comments from unregistered users and regular users for cleanup, duplication, spam, or policy reasons. Moderators cannot permanently delete content, ban users, or promote roles.
+- `administrator`: has all `moderator` rights, can view hidden recipes and comments, permanently mark recipes/comments deleted, ban users, and promote `user` accounts to `moderator`. Administrators cannot promote administrators, demote/promote `superadmin`, or alter the protected initial `superadmin` account.
+- `superadmin`: has all permissions, including promoting users to moderators, promoting moderators to administrators, managing administrators, and overriding moderation/admin actions.
 
 ## Behavior Rules From Existing Notes
 - A recipe should only be hard-deletable before it has user interactions; after that, prefer soft delete or moderation flows.
@@ -49,12 +52,13 @@
 - Similarity or clone detection during recipe creation is a planned product requirement from the original notes.
 - Hidden recipes and comments should not be visible to unregistered users, regular registered users, or their normal listings/search results.
 - Moderator actions should default to reversible hiding, while administrator actions can escalate to permanent removal and user bans.
-- Role changes, moderation actions, bans, and user-facing content changes should be included in action logging.
+- Role changes, moderation actions, bans, auth events, favorites, comments, and recipe changes must be included in the unified action/audit log.
+- Reporting and appeals are post-MVP and should not get schema or API work until the user explicitly asks for them.
 
 ## Implementation Areas
 - Backend work should plan for APIs covering users, recipes, ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, moderation, role management, and action logging.
 - Frontend work should plan for recipe browsing, recipe editor flows, search and filters, user profile, authentication, and localization.
-- Database work should plan for canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, audit history, and action logging.
+- Database work should plan for categories, tags, canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, and unified action/audit logging.
 - DevOps work should assume Ubuntu and nginx deployment, plus CI for linting, tests, and security checks.
 
 ## Recipe Workflow Expectations
@@ -70,21 +74,24 @@
 - Filtering is expected to grow around language, category, complexity, user-owned recipes, favorites, preparation time, ratings, and servings.
 
 ## Data Model Baseline
-- Core tables expected from the initial notes: `users`, `ingredients`, `ingredient_translations`, `recipes`, `recipe_ingredients`, `ratings`, `complexity_votes`, `favorites`, `comments`, `recipe_relations`, `media`, `views`, `audit_log`, `actions`, and `action_log`.
+- Core tables expected from the initial notes: `users`, `categories`, `tags`, `recipe_tags`, `ingredients`, `ingredient_translations`, `recipes`, `recipe_ingredients`, `ratings`, `complexity_votes`, `favorites`, `comments`, `recipe_relations`, `media`, `views`, `actions`, and `action_log`.
 - `users` should support role-aware access for registered users, moderators, administrators, and `SuperAdmin`, plus user ban state.
+- `categories` should define recipe categories used by `recipes`.
+- `tags` should define reusable recipe tags.
+- `recipe_tags` should link recipes and tags many-to-many.
 - `ingredients` should represent canonical ingredients.
 - `ingredient_translations` should carry localized ingredient names by language.
-- `recipes` should include author, title, language, steps HTML, main media reference, and servings.
+- `recipes` should include author, title, category, language, steps HTML, main media reference, servings, `hidden`, `deleted`, `hidden_id`, and `deleted_id`.
 - `recipe_ingredients` should store ingredient quantities and units per recipe.
 - Ratings and complexity votes should be stored per user per recipe rather than only as aggregates.
 - `recipe_relations` should support parent/child or clone-style links between recipes.
-- `comments` should be compatible with soft delete or moderation handling.
-- `audit_log` should preserve change history for recipe edits and related actions.
+- `comments` should include `hidden`, `deleted`, `hidden_id`, and `deleted_id` for moderation/admin handling.
 - `actions` should define action types such as login, registration, recipe creation, recipe edit, comment creation, favorite save, moderation hide, ban, and role promotion.
-- `action_log` should store timestamp, IP address, `action_id`, acting user, and structured `extra` details including changed table and `record_id` where relevant.
+- `action_log` is the single audit and user-activity log. It should store timestamp, IP address, `action_id`, acting user, target user when relevant, and structured `extra` details including changed table, `record_id`, reason, before/after data where useful, and any moderation/admin context.
+- `hidden_id` and `deleted_id` on recipes/comments should reference the `action_log.id` row that explains who performed the action, when, from which IP, and why.
 
 ## API Baseline
-- Planned auth endpoints include registration and OAuth login.
+- Planned auth endpoints include registration, OAuth login, and JWT access + refresh token handling with secure cookie-based rotated refresh tokens.
 - Planned recipe endpoints include listing, creation, rating, and complexity voting.
 - Planned media endpoints include upload with metadata returned after validation and storage.
 - Planned moderation and admin endpoints should cover hiding and deleting recipes/comments, banning users, and role promotion flows.
@@ -96,6 +103,7 @@
 - Media upload handling should include MIME validation, size limits, filename normalization, storage outside webroot, thumbnail or optimized derivative generation, and antivirus scanning.
 - Plan for CSRF protection, rate limiting, secure password hashing, email verification, and secure OAuth handling.
 - Role-based authorization must be enforced server-side for moderator, administrator, and `SuperAdmin` actions.
+- Refresh tokens should be cookie-based, secure, rotated, and invalidated on reuse or logout.
 
 ## Legal References
 - Privacy policy source: `legal/privacy.md`

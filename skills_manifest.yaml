@@ -10,18 +10,19 @@ skills:
 
   - name: backend
     path: skills/backend
-    description: "Backend APIs, auth, sanitization, media pipeline, business logic."
-    trigger_words: ["api", "sanitize", "upload", "auth", "ratings"]
+    description: "FastAPI backend APIs, auth, RBAC, sanitization, media pipeline, business logic."
+    trigger_words: ["api", "sanitize", "upload", "auth", "ratings", "jwt", "rbac"]
     goals:
       - "Produce API contracts for endpoints"
+      - "Implement RBAC and JWT access plus rotated secure-cookie refresh tokens"
       - "Define server-side WYSIWYG sanitization rules"
       - "Implement media upload validation and processing"
       - "Implement rating and complexity aggregation logic"
 
   - name: frontend
     path: skills/frontend
-    description: "Preact UI, WYSIWYG editor integration, i18n, client validation."
-    trigger_words: ["preact", "wysiwyg", "i18n", "ui", "paste-image"]
+    description: "Vite + Preact + TypeScript UI, WYSIWYG editor integration, i18n, client validation."
+    trigger_words: ["preact", "vite", "typescript", "wysiwyg", "i18n", "ui", "paste-image"]
     goals:
       - "Build Preact components and editor integration"
       - "Implement client-side validation and i18n hooks"
@@ -29,10 +30,11 @@ skills:
 
   - name: database
     path: skills/database
-    description: "Schema design, migrations, seeds, indexes, full-text search."
-    trigger_words: ["schema", "migration", "seed", "index", "search"]
+    description: "Schema design, migrations, seeds, indexes, full-text search, unified audit/activity logging."
+    trigger_words: ["schema", "migration", "seed", "index", "search", "audit", "action_log"]
     goals:
       - "Design DB schema and migration plan for Postgres"
+      - "Include categories, tags, recipe_tags, roles, and action logging in the baseline schema"
       - "Create seed data for canonical ingredients and translations"
       - "Define indexes and full-text search configuration"
 
@@ -56,12 +58,12 @@ skills:
 
   - name: moderation
     path: skills/moderation
-    description: "Reporting workflow, soft-delete rules, appeals, spam controls."
-    trigger_words: ["report", "moderation", "soft-delete", "appeal", "spam"]
+    description: "Moderation roles, hidden/deleted status rules, bans, spam cleanup controls."
+    trigger_words: ["moderation", "hidden", "deleted", "ban", "spam", "roles"]
     goals:
-      - "Define report and triage workflow"
-      - "Specify soft-delete rules and audit logging"
-      - "Define appeals and escalation process"
+      - "Define moderator, administrator, and superadmin boundaries"
+      - "Specify hidden/deleted status rules and action-log links"
+      - "Define ban and role-promotion moderation behavior"
 
   - name: localization
     path: skills/localization
