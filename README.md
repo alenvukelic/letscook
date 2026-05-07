@@ -4,10 +4,10 @@ LetsCook is a planned multilingual cookbook web app for adding, sharing, and sea
 
 ## Status
 
-This repository is still in the bootstrap stage.
+This repository is in the first implementation stage.
 
-- Current contents: repo guidance docs, `skills_manifest.yaml`, skill folders under `skills/`, and legal documents under `legal/`
-- Current app status: no backend, frontend, database schema, build config, or test config has been added yet
+- Current contents: PostgreSQL schema script, FastAPI backend scaffold, Vite + Preact + TypeScript frontend scaffold, repo guidance docs, skill folders, and legal documents
+- Current app status: runnable frontend shell and backend health/meta API foundation; full product features are not implemented yet
 
 ## Planned Product Scope
 
@@ -27,7 +27,7 @@ This repository is still in the bootstrap stage.
 - Vite + Preact + TypeScript frontend
 - nginx on Ubuntu
 
-These are the intended starting technologies and may evolve as the implementation takes shape.
+These are the selected starting technologies.
 
 ## Core Requirements
 
@@ -45,6 +45,10 @@ These are the intended starting technologies and may evolve as the implementatio
 .
 |-- AGENTS.md
 |-- README.md
+|-- backend/
+|-- db/
+|   `-- schema.sql
+|-- frontend/
 |-- skills_manifest.yaml
 |-- skills/
 `-- legal/
@@ -56,14 +60,55 @@ These are the intended starting technologies and may evolve as the implementatio
 
 ## Installation
 
-There is no runnable application in the repository yet, so there is nothing to install beyond cloning the repository.
+Clone the repository first.
 
 ```bash
 git clone https://github.com/alenvukelic/letscook.git
 cd letscook
 ```
 
-When application code is added, this section should be expanded with exact setup steps for the backend, frontend, database, and any required services.
+Backend setup:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .[dev]
+fastapi dev app/main.py
+```
+
+Frontend setup:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Database schema, once local PostgreSQL access is available:
+
+```bash
+psql "$DATABASE_URL" -f db/schema.sql
+```
+
+The frontend dev server defaults to `http://localhost:5173`; the backend API defaults to `http://localhost:8000/api`.
+
+## Verification
+
+Backend:
+
+```powershell
+cd backend
+pytest
+ruff check .
+```
+
+Frontend:
+
+```powershell
+cd frontend
+npm run build
+```
 
 ## Legal Documents
 

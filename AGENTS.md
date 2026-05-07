@@ -1,12 +1,12 @@
 # AGENTS.md
 
 ## Current State
-- The repository is still being bootstrapped. Right now it contains repo guidance docs, a planned skill manifest under `skills_manifest.yaml`, skill folders under `skills/`, and editable legal docs under `legal/`; there is no application code, build config, or test config yet.
-- Treat this file, `skills_manifest.yaml`, the files under `skills/`, and the existing legal markdown files as the current repo-specific source of truth until real code and config are added.
+- The repository now contains an initial scaffold: PostgreSQL schema script under `db/`, FastAPI backend under `backend/`, Vite + Preact + TypeScript frontend under `frontend/`, repo guidance docs, skill folders, and editable legal docs under `legal/`.
+- Treat this file, `README.md`, `skills_manifest.yaml`, the files under `skills/`, `db/schema.sql`, and the existing legal markdown files as the current repo-specific source of truth while code is still early.
 
 ## Planned System Direction
 - Product intent: a multilingual cookbook web app for adding, sharing, and searching recipes.
-- Planned stack: PostgreSQL; FastAPI Python backend with SQLAlchemy, Alembic, and Pydantic; Vite + Preact + TypeScript frontend; nginx on Ubuntu.
+- Stack: PostgreSQL; FastAPI Python backend with SQLAlchemy, Alembic, and Pydantic; Vite + Preact + TypeScript frontend; nginx on Ubuntu.
 - Initial languages called out in the original notes: Croatian, English, German.
 - Treat these as target architecture and product constraints, not as already-implemented code.
 - Use the initial product, API, and database notes below as the default starting blueprint unless later code or user instructions override them.
@@ -19,6 +19,16 @@
 - Keep `skills_manifest.yaml` and the files under `skills/` aligned with the planned architecture when responsibilities or boundaries change.
 - Ask before doing anything that conflicts with existing user instructions, current worktree changes, or the guidance in this file.
 - Do not rewrite, revert, or delete unrelated user changes without permission.
+
+## Developer Commands
+- Backend setup: `cd backend; python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -e .[dev]`
+- Backend dev server: `cd backend; fastapi dev app/main.py`
+- Backend tests: `cd backend; pytest`
+- Backend lint: `cd backend; ruff check .`
+- Frontend setup: `cd frontend; npm install`
+- Frontend dev server: `cd frontend; npm run dev`
+- Frontend build: `cd frontend; npm run build`
+- Database schema apply, after local DB access exists: `psql "$DATABASE_URL" -f db/schema.sql`
 
 ## Git Remote
 - GitHub repository: `https://github.com/alenvukelic/letscook`
