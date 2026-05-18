@@ -27,15 +27,18 @@ Files prefixed with `_` are internal helpers. Do not tell users to start from th
 - User-facing deployment instructions belong in `deploy/README.md`.
 - Keep all user-facing text in deploy scripts and docs in English.
 - AI-specific deploy maintenance notes belong here, not in the user README.
+- When changing deploy behavior, update both `deploy/README.md` and this `deploy/AGENTS.md` in the same change if either one becomes stale.
 
 ## Script design rules
 
 - `install.sh` is the full install and repair entrypoint.
+- `install.sh` is also the bootstrap entrypoint and must keep the repository checkout step first.
 - `update.sh` is the manual fallback for refresh and redeploy after install.
 - `diagnose.sh` must stay read-only.
 - Shared shell logic belongs in `_lib.sh`.
 - Internal helpers should keep the `_` prefix.
 - Prefer idempotent checks so rerunning the installer repairs missing pieces instead of forcing a full reset.
+- Keep the repository checkout directory clearly separate from the live app directory in both defaults and prompts.
 
 ## Safety rules
 

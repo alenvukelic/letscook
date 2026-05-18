@@ -54,16 +54,18 @@ It can:
 
 1. ask whether the app should be pulled from GitHub
 2. ask where the repository checkout should live and keep it clearly separate from the live web app directory
-2. guide SSH deploy key generation for GitHub clone and auto-deploy
-3. create or refresh the deploy checkout
-4. sync the runtime tree into the live app directory
-5. prepare backend `.env`
-6. install backend dependencies into `backend/.venv`
-7. install frontend packages and build the frontend
-8. validate database connectivity and optionally apply `db/schema.sql`
-9. install or repair the systemd service
-10. install or repair nginx
-11. optionally configure self-signed OpenSSL certificates or Let's Encrypt
+3. choose HTTPS or SSH repository update mode
+4. guide SSH deploy key generation for GitHub clone and auto-deploy when SSH mode is selected
+5. offer a dedicated auto-deploy user separate from the app runtime user
+6. create or refresh the deploy checkout
+7. sync the runtime tree into the live app directory
+8. prepare backend `.env`
+9. install backend dependencies into `backend/.venv`
+10. install frontend packages and build the frontend
+11. validate database connectivity and optionally apply `db/schema.sql`
+12. install or repair the systemd service
+13. install or repair nginx
+14. optionally configure self-signed OpenSSL certificates or Let's Encrypt
 
 Every major step first checks whether it is already configured so the script can be rerun safely for repair work.
 
@@ -106,7 +108,7 @@ Typical GitHub setup:
 3. run the server-side helper through SSH:
 
 ```bash
-sudo bash /opt/letscook-deploy/deploy/update.sh
+sudo bash /opt/letscook-repo/deploy/update.sh
 ```
 
 ## Update
@@ -114,7 +116,7 @@ sudo bash /opt/letscook-deploy/deploy/update.sh
 After the app is installed:
 
 ```bash
-sudo bash /opt/letscook-deploy/deploy/update.sh
+sudo bash /opt/letscook-repo/deploy/update.sh
 ```
 
 This script:
@@ -132,7 +134,7 @@ This script:
 Read-only diagnostics:
 
 ```bash
-sudo bash /opt/letscook-deploy/deploy/diagnose.sh
+sudo bash /opt/letscook-repo/deploy/diagnose.sh
 ```
 
 It checks:
@@ -165,3 +167,4 @@ It checks:
 - Keep user-facing messages in English.
 - Do not commit the real `deploy/install.config`.
 - Use `diagnose.sh` before making manual changes if you are unsure what is already configured.
+- Keep this README aligned with the real installer flow whenever deploy behavior changes.
