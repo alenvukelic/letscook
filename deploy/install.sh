@@ -84,14 +84,9 @@ bootstrap_git() {
   local repo_dir="$1"
   shift
 
-  local owner_user
-  owner_user="$(stat -c '%U' "$repo_dir")"
-
-  if [[ -n "$owner_user" && "$owner_user" != "root" ]]; then
-    sudo -u "$owner_user" git -c safe.directory="$repo_dir" -C "$repo_dir" "$@"
-  else
-    git -c safe.directory="$repo_dir" -C "$repo_dir" "$@"
-  fi
+  # Bootstrap must be able to recover from mixed ownership inside an existing
+  # checkout, so use root with a one-off safe.directory override here.
+  git -c safe.directory="$repo_dir" -C "$repo_dir" "$@"
 }
 
 bootstrap_repo_checkout() {
