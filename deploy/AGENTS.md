@@ -46,3 +46,4 @@ Files prefixed with `_` are internal helpers. Do not tell users to start from th
 - Preserve existing `.env`, database values, SSL files, and SSH keys when possible.
 - Never print secrets unless the script is explicitly showing a public key or a user-requested summary.
 - Prefer clear operator prompts and explanations over silent fallback behavior.
+- Broken unrelated APT repositories should produce a clear warning, but should not abort deploy bootstrap if required packages are already installed or still resolvable.

@@ -16,6 +16,10 @@ log() {
   printf '[%s] %s\n' "$(ts)" "$*"
 }
 
+warn() {
+  printf '[%s] WARNING: %s\n' "$(ts)" "$*" >&2
+}
+
 die() {
   printf '[%s] ERROR: %s\n' "$(ts)" "$*" >&2
   exit 1
@@ -63,7 +67,16 @@ PY
 }
 
 ensure_bootstrap_packages() {
-  apt-get update
+  if command -v curl >/dev/null 2>&1 && command -v git >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    log "Bootstrap packages already exist; skipping bootstrap apt install"
+    return 0
+  fi
+
+  if ! apt-get update; then
+    warn "apt-get update reported errors during bootstrap. This is often caused by an unrelated third-party repository."
+    warn "The installer will continue and try to use the currently available package indexes."
+  fi
+
   apt-get install -y ca-certificates curl git python3
 }
 

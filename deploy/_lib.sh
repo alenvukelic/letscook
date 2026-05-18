@@ -80,6 +80,16 @@ setup_log_capture() {
   exec > >(tee -a "$log_file") 2>&1
 }
 
+safe_apt_update() {
+  if apt-get update; then
+    return 0
+  fi
+
+  warn "apt-get update reported errors. This is often caused by an unrelated third-party repository."
+  warn "The installer will continue and try to use the currently available package indexes."
+  return 0
+}
+
 prompt_yes_no() {
   local prompt="$1"
   local default_value="$2"
@@ -172,7 +182,7 @@ ensure_user() {
 
 ensure_base_packages() {
   log "Installing base packages"
-  apt-get update
+  safe_apt_update
   apt-get install -y $BASE_PACKAGES
 }
 

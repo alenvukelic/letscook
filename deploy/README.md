@@ -69,6 +69,8 @@ It can:
 
 Every major step first checks whether it is already configured so the script can be rerun safely for repair work.
 
+If `apt-get update` reports an unrelated third-party repository failure, the installer now warns and continues with the currently available package indexes instead of aborting immediately.
+
 ## Install Flow
 
 Run on the server from the project checkout:
@@ -168,3 +170,4 @@ It checks:
 - Do not commit the real `deploy/install.config`.
 - Use `diagnose.sh` before making manual changes if you are unsure what is already configured.
 - Keep this README aligned with the real installer flow whenever deploy behavior changes.
+- The installer should tolerate broken unrelated APT repositories when core packages are already resolvable from existing indexes.
