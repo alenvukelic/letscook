@@ -88,9 +88,9 @@ bootstrap_git() {
   owner_user="$(stat -c '%U' "$repo_dir")"
 
   if [[ -n "$owner_user" && "$owner_user" != "root" ]]; then
-    sudo -u "$owner_user" git -C "$repo_dir" "$@"
+    sudo -u "$owner_user" git -c safe.directory="$repo_dir" -C "$repo_dir" "$@"
   else
-    git -C "$repo_dir" "$@"
+    git -c safe.directory="$repo_dir" -C "$repo_dir" "$@"
   fi
 }
 
