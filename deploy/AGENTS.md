@@ -1,0 +1,45 @@
+# AGENTS.md - deploy folder
+
+## Purpose
+
+This folder contains deployment entrypoints, internal helpers, and deploy-specific documentation for Letscook.
+
+## Public vs internal files
+
+Treat only these as user-facing entrypoints:
+
+- `install.sh`
+- `update.sh`
+- `diagnose.sh`
+
+Files prefixed with `_` are internal helpers. Do not tell users to start from them unless the task is specifically about deploy internals.
+
+## Config rules
+
+- The real `install.config` is local-only and must not be committed.
+- The tracked template is `install.config.example`.
+- If a new deploy variable is needed, add it to `install.config.example`, document it in `deploy/README.md`, and keep installer behavior clear when the real config is missing.
+- Keep server-specific secrets in `install.config` on the server, not in tracked shell scripts.
+- Keep `PRIVATE.md` for local notes only; do not copy its contents into deploy docs.
+
+## Documentation rules
+
+- User-facing deployment instructions belong in `deploy/README.md`.
+- Keep all user-facing text in deploy scripts and docs in English.
+- AI-specific deploy maintenance notes belong here, not in the user README.
+
+## Script design rules
+
+- `install.sh` is the full install and repair entrypoint.
+- `update.sh` is the manual fallback for refresh and redeploy after install.
+- `diagnose.sh` must stay read-only.
+- Shared shell logic belongs in `_lib.sh`.
+- Internal helpers should keep the `_` prefix.
+- Prefer idempotent checks so rerunning the installer repairs missing pieces instead of forcing a full reset.
+
+## Safety rules
+
+- Fail early when a required path or dependency is missing.
+- Preserve existing `.env`, database values, SSL files, and SSH keys when possible.
+- Never print secrets unless the script is explicitly showing a public key or a user-requested summary.
+- Prefer clear operator prompts and explanations over silent fallback behavior.

@@ -1,0 +1,15 @@
+[Unit]
+Description=Letscook FastAPI backend
+After=network.target postgresql.service
+
+[Service]
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_BACKEND_DIR__
+Environment=PATH=__VENV_PATH__/bin
+ExecStart=__VENV_PATH__/bin/uvicorn app.main:app --host 127.0.0.1 --port __BACKEND_PORT__
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

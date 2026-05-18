@@ -1,0 +1,66 @@
+# Letscook deploy configuration
+#
+# Copy this file to deploy/install.config before running install:
+#   cp deploy/install.config.example deploy/install.config
+#
+# The real install.config stays local-only because it can contain server-specific
+# values and secrets. Keep values in simple KEY="value" form.
+
+# Repository source
+GITHUB_HOST="github.com"
+GITHUB_OWNER="alenvukelic"
+GITHUB_REPO="letscook"
+REPO_BRANCH="main"
+REPO_SSH_URL="git@github.com:${GITHUB_OWNER}/${GITHUB_REPO}.git"
+REPO_HTTPS_URL="https://${GITHUB_HOST}/${GITHUB_OWNER}/${GITHUB_REPO}.git"
+USE_GIT_DEPLOY="yes"
+AUTO_DEPLOY_ENABLE="yes"
+
+# Application users
+APP_USER="letscook"
+DEPLOY_USER="letscook-deployer"
+
+# Server paths
+APP_DIR="/opt/letscook"
+DEPLOY_DIR="/opt/letscook-deploy"
+VENV_NAME=".venv"
+
+# Runtime
+PYTHON_BIN="python3"
+BACKEND_PORT="8000"
+SERVICE_NAME="letscook"
+
+# Database
+DB_HOST="127.0.0.1"
+DB_PORT="5432"
+DB_NAME="letscook"
+DB_USER="letscook"
+DB_PASSWORD="changeme"
+APPLY_SCHEMA_IF_EMPTY="yes"
+
+# Backend env
+JWT_SECRET_KEY=""
+BACKEND_CORS_ORIGINS="http://localhost:5173"
+MEDIA_ROOT="../var/media"
+
+# Web setup
+ENABLE_NGINX="yes"
+APP_DOMAIN=""
+SSL_MODE="none"
+LETSENCRYPT_EMAIL=""
+SELF_SIGNED_DAYS="825"
+SELF_SIGNED_COUNTRY="HR"
+SELF_SIGNED_STATE=""
+SELF_SIGNED_CITY=""
+SELF_SIGNED_ORG="Letscook"
+SELF_SIGNED_OU="Deployment"
+
+# SSH / auto-deploy
+SSH_PORT="22"
+DEPLOY_KEY_NAME="github-deploy"
+GITHUB_ACTIONS_SECRET_NAME="DEPLOY_SSH_KEY"
+
+# Logs and packages
+INSTALL_LOG="/var/log/letscook-install.log"
+AUTO_DEPLOY_LOG="/var/log/letscook-auto-deploy.log"
+BASE_PACKAGES="curl git rsync ca-certificates gnupg nginx openssl certbot python3-certbot-nginx python3-pip python3-venv build-essential"

@@ -23,3 +23,7 @@ coverage/
 Thumbs.db
 .idea/
 .vscode/
+
+# Private config
+PRIVATE.md
+deploy/install.config
