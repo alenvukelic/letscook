@@ -17,11 +17,15 @@ main() {
   fi
 
   ensure_user "$DEPLOY_USER"
-  ensure_deploy_key
-  print_public_key_instructions
+  if [[ "$CLONE_METHOD" == "ssh" ]]; then
+    ensure_deploy_key
+    print_public_key_instructions
 
-  if prompt_yes_no "Press y after you added the deploy key to GitHub and want to test SSH now" "yes"; then
-    test_github_ssh || true
+    if prompt_yes_no "Press y after you added the deploy key to GitHub and want to test SSH now" "yes"; then
+      test_github_ssh || true
+    fi
+  else
+    log "Clone method is HTTPS; repository deploy key is not required for this public-repo flow"
   fi
 
   setup_auto_deploy_sudoers

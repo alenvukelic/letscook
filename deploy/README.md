@@ -44,6 +44,8 @@ sudo bash deploy/install.sh
 
 If `install.config` is missing, `install.sh` creates it from the example and then walks you through the important values interactively.
 
+You can also run the installer as a bootstrap entrypoint from a single downloaded `install.sh` file because its first job is to download or refresh the repository checkout.
+
 ## What `install.sh` Does
 
 The installer is interactive and repair-friendly.
@@ -51,6 +53,7 @@ The installer is interactive and repair-friendly.
 It can:
 
 1. ask whether the app should be pulled from GitHub
+2. ask where the repository checkout should live and keep it clearly separate from the live web app directory
 2. guide SSH deploy key generation for GitHub clone and auto-deploy
 3. create or refresh the deploy checkout
 4. sync the runtime tree into the live app directory
@@ -75,20 +78,24 @@ sudo bash deploy/install.sh
 Recommended first-run flow:
 
 1. choose GitHub deploy mode if the server should pull the repo itself
-2. add the shown SSH public key as a GitHub deploy key
-3. let the installer clone or refresh the repo
-4. confirm database values
-5. confirm backend `.env` values
-6. choose HTTP only, self-signed SSL, or Let's Encrypt
-7. let the installer verify and restart the service
+2. choose the repository checkout folder, for example `/opt/letscook-repo`
+3. choose whether to use HTTPS or SSH for repository updates
+4. add the shown SSH public key as a GitHub deploy key if you chose SSH mode
+5. confirm database values
+6. confirm backend `.env` values
+7. choose HTTP only, self-signed SSL, or Let's Encrypt
+8. let the installer verify and restart the service
 
 ## GitHub Auto-Deploy
 
 If you enable GitHub deploy mode, the installer can prepare:
 
+- a dedicated deploy user
 - deploy SSH key for cloning the repository
 - `known_hosts` entry for GitHub
 - passwordless sudo rule for the deploy user to run the internal auto-update helper
+
+For a public repository, you can keep the clone method on HTTPS and skip the GitHub deploy key step.
 
 The installer prints the public key you must add in GitHub.
 

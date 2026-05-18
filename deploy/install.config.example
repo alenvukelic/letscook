@@ -13,6 +13,7 @@ GITHUB_REPO="letscook"
 REPO_BRANCH="main"
 REPO_SSH_URL="git@github.com:${GITHUB_OWNER}/${GITHUB_REPO}.git"
 REPO_HTTPS_URL="https://${GITHUB_HOST}/${GITHUB_OWNER}/${GITHUB_REPO}.git"
+CLONE_METHOD="https"
 USE_GIT_DEPLOY="yes"
 AUTO_DEPLOY_ENABLE="yes"
 
@@ -21,8 +22,8 @@ APP_USER="letscook"
 DEPLOY_USER="letscook-deployer"
 
 # Server paths
-APP_DIR="/opt/letscook"
-DEPLOY_DIR="/opt/letscook-deploy"
+APP_DIR="/opt/letscook-app"
+DEPLOY_DIR="/opt/letscook-repo"
 VENV_NAME=".venv"
 
 # Runtime

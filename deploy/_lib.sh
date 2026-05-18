@@ -36,7 +36,14 @@ load_config() {
   SSL_DIR="/etc/ssl/$SERVICE_NAME"
   SELF_SIGNED_KEY_PATH="$SSL_DIR/selfsigned.key"
   SELF_SIGNED_CERT_PATH="$SSL_DIR/selfsigned.crt"
-  GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+  CLONE_METHOD="${CLONE_METHOD:-https}"
+  if [[ "$CLONE_METHOD" == "ssh" ]]; then
+    REPO_FETCH_URL="$REPO_SSH_URL"
+    GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY_PATH -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+  else
+    REPO_FETCH_URL="$REPO_HTTPS_URL"
+    GIT_SSH_COMMAND=""
+  fi
 }
 
 load_config
@@ -174,7 +181,17 @@ ensure_runtime_commands() {
   command_exists npm || die "Required runtime is missing: npm. Run your Node.js base install script first."
 }
 
+git_as_deploy() {
+  if [[ "$CLONE_METHOD" == "ssh" ]]; then
+    sudo -u "$DEPLOY_USER" env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git "$@"
+  else
+    sudo -u "$DEPLOY_USER" git "$@"
+  fi
+}
+
 ensure_git_known_host() {
+  [[ "$CLONE_METHOD" == "ssh" ]] || return 0
+
   install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$DEPLOY_SSH_DIR"
   local known_hosts="$DEPLOY_SSH_DIR/known_hosts"
   touch "$known_hosts"
@@ -187,6 +204,8 @@ ensure_git_known_host() {
 }
 
 ensure_deploy_key() {
+  [[ "$CLONE_METHOD" == "ssh" ]] || return 0
+
   install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$DEPLOY_SSH_DIR"
 
   if [[ ! -f "$DEPLOY_KEY_PATH" ]]; then
@@ -200,6 +219,8 @@ ensure_deploy_key() {
 }
 
 print_public_key_instructions() {
+  [[ "$CLONE_METHOD" == "ssh" ]] || return 0
+
   cat <<EOF
 
 Add this SSH public key in GitHub as a deploy key for ${GITHUB_OWNER}/${GITHUB_REPO}:
@@ -216,6 +237,11 @@ EOF
 }
 
 test_github_ssh() {
+  if [[ "$CLONE_METHOD" != "ssh" ]]; then
+    log "GitHub SSH test skipped because clone method is HTTPS"
+    return 0
+  fi
+
   sudo -u "$DEPLOY_USER" env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" ssh -T git@github.com >/tmp/${SERVICE_NAME}-github-ssh-test.log 2>&1 || true
   if grep -Eq 'successfully authenticated|Hi ' /tmp/${SERVICE_NAME}-github-ssh-test.log; then
     log "GitHub SSH authentication is working"
@@ -237,14 +263,15 @@ ensure_repo_checkout() {
     fi
 
     log "Cloning repository into $DEPLOY_DIR"
-    sudo -u "$DEPLOY_USER" env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git clone --branch "$REPO_BRANCH" "$REPO_SSH_URL" "$DEPLOY_DIR"
+    git_as_deploy clone --branch "$REPO_BRANCH" "$REPO_FETCH_URL" "$DEPLOY_DIR"
   else
     log "Deploy checkout already exists at $DEPLOY_DIR"
   fi
 
-  sudo -u "$DEPLOY_USER" env GIT_SSH_COMMAND="$GIT_SSH_COMMAND" git -C "$DEPLOY_DIR" fetch --all --prune
-  sudo -u "$DEPLOY_USER" git -C "$DEPLOY_DIR" checkout "$REPO_BRANCH"
-  sudo -u "$DEPLOY_USER" git -C "$DEPLOY_DIR" reset --hard "origin/$REPO_BRANCH"
+  git_as_deploy -C "$DEPLOY_DIR" remote set-url origin "$REPO_FETCH_URL"
+  git_as_deploy -C "$DEPLOY_DIR" fetch --all --prune
+  git_as_deploy -C "$DEPLOY_DIR" checkout "$REPO_BRANCH"
+  git_as_deploy -C "$DEPLOY_DIR" reset --hard "origin/$REPO_BRANCH"
   ensure_tree_owner "$DEPLOY_DIR" "$DEPLOY_USER"
 }
 

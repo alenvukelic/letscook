@@ -2,20 +2,136 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_CONFIG_PATH="$SCRIPT_DIR/install.config"
-INSTALL_CONFIG_EXAMPLE_PATH="$SCRIPT_DIR/install.config.example"
+BOOTSTRAP_GITHUB_HOST="github.com"
+BOOTSTRAP_GITHUB_OWNER="alenvukelic"
+BOOTSTRAP_GITHUB_REPO="letscook"
+BOOTSTRAP_REPO_BRANCH="main"
+BOOTSTRAP_DEPLOY_DIR="/opt/letscook-repo"
 
-if [[ ! -f "$INSTALL_CONFIG_PATH" ]]; then
-  cp "$INSTALL_CONFIG_EXAMPLE_PATH" "$INSTALL_CONFIG_PATH"
-  echo "Created $INSTALL_CONFIG_PATH from the example template."
-fi
+ts() {
+  date '+%Y-%m-%d %H:%M:%S'
+}
+
+log() {
+  printf '[%s] %s\n' "$(ts)" "$*"
+}
+
+die() {
+  printf '[%s] ERROR: %s\n' "$(ts)" "$*" >&2
+  exit 1
+}
+
+require_root() {
+  [[ ${EUID:-0} -eq 0 ]] || die "Run this script as root with sudo."
+}
+
+prompt_value_bootstrap() {
+  local prompt="$1"
+  local current_value="$2"
+  local answer=""
+  read -r -p "$prompt [$current_value]: " answer
+  if [[ -n "$answer" ]]; then
+    printf '%s' "$answer"
+  else
+    printf '%s' "$current_value"
+  fi
+}
+
+bootstrap_save_config_value() {
+  local config_path="$1"
+  local key="$2"
+  local value="$3"
+
+  python3 - "$config_path" "$key" "$value" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+key = sys.argv[2]
+value = sys.argv[3]
+line = f'{key}="{value}"'
+text = path.read_text(encoding='utf-8')
+lines = text.splitlines()
+for index, existing in enumerate(lines):
+    if existing.startswith(f"{key}="):
+        lines[index] = line
+        break
+else:
+    lines.append(line)
+path.write_text("\n".join(lines) + "\n", encoding='utf-8')
+PY
+}
+
+ensure_bootstrap_packages() {
+  apt-get update
+  apt-get install -y ca-certificates curl git python3
+}
+
+bootstrap_repo_checkout() {
+  local github_owner github_repo repo_branch repo_dir repo_url
+
+  echo ""
+  echo "=============================================="
+  echo "        Letscook Bootstrap Installer"
+  echo "=============================================="
+  echo ""
+  echo "Step 1 downloads or refreshes the repository checkout."
+  echo "Use a dedicated repository folder, not an nginx web root such as /var/www/html."
+  echo "Recommended pattern: /opt/letscook-repo for Git checkout, /opt/letscook-app for the live app."
+  echo ""
+
+  github_owner="$(prompt_value_bootstrap "GitHub owner" "$BOOTSTRAP_GITHUB_OWNER")"
+  github_repo="$(prompt_value_bootstrap "GitHub repository" "$BOOTSTRAP_GITHUB_REPO")"
+  repo_branch="$(prompt_value_bootstrap "Git branch" "$BOOTSTRAP_REPO_BRANCH")"
+  repo_dir="$(prompt_value_bootstrap "Repository checkout directory" "$BOOTSTRAP_DEPLOY_DIR")"
+  repo_url="https://${BOOTSTRAP_GITHUB_HOST}/${github_owner}/${github_repo}.git"
+
+  mkdir -p /opt
+  if [[ -d "$repo_dir/.git" ]]; then
+    log "Refreshing existing repository checkout at $repo_dir"
+    git -C "$repo_dir" fetch --all --prune
+    git -C "$repo_dir" checkout "$repo_branch"
+    git -C "$repo_dir" reset --hard "origin/$repo_branch"
+  else
+    mkdir -p "$repo_dir"
+    if find "$repo_dir" -mindepth 1 -maxdepth 1 | read -r _; then
+      die "$repo_dir already exists and is not an empty git checkout directory"
+    fi
+    log "Cloning repository into $repo_dir"
+    git clone --branch "$repo_branch" "$repo_url" "$repo_dir"
+  fi
+
+  INSTALL_CONFIG_PATH="$repo_dir/deploy/install.config"
+  INSTALL_CONFIG_EXAMPLE_PATH="$repo_dir/deploy/install.config.example"
+  [[ -f "$INSTALL_CONFIG_EXAMPLE_PATH" ]] || die "Missing deploy/install.config.example in the downloaded repository"
+
+  if [[ ! -f "$INSTALL_CONFIG_PATH" ]]; then
+    cp "$INSTALL_CONFIG_EXAMPLE_PATH" "$INSTALL_CONFIG_PATH"
+    echo "Created $INSTALL_CONFIG_PATH from the example template."
+  fi
+
+  bootstrap_save_config_value "$INSTALL_CONFIG_PATH" "GITHUB_OWNER" "$github_owner"
+  bootstrap_save_config_value "$INSTALL_CONFIG_PATH" "GITHUB_REPO" "$github_repo"
+  bootstrap_save_config_value "$INSTALL_CONFIG_PATH" "REPO_BRANCH" "$repo_branch"
+  bootstrap_save_config_value "$INSTALL_CONFIG_PATH" "DEPLOY_DIR" "$repo_dir"
+  bootstrap_save_config_value "$INSTALL_CONFIG_PATH" "REPO_HTTPS_URL" "$repo_url"
+  bootstrap_save_config_value "$INSTALL_CONFIG_PATH" "REPO_SSH_URL" "git@github.com:${github_owner}/${github_repo}.git"
+
+  export INSTALL_CONFIG_PATH INSTALL_CONFIG_EXAMPLE_PATH
+  ACTIVE_DEPLOY_DIR="$repo_dir"
+}
+
+require_root
+ensure_bootstrap_packages
+bootstrap_repo_checkout
 
 # shellcheck disable=SC1091
-source "$SCRIPT_DIR/_lib.sh"
+source "$ACTIVE_DEPLOY_DIR/deploy/_lib.sh"
 
 configure_install_values() {
   local answer=""
+  local dedicated_deploy_user_answer=""
+  local app_user_choice=""
 
   echo ""
   echo "=============================================="
@@ -27,22 +143,35 @@ configure_install_values() {
     save_config_value "USE_GIT_DEPLOY" "yes"
     save_config_value "AUTO_DEPLOY_ENABLE" "yes"
 
-    save_config_value "GITHUB_OWNER" "$(prompt_value "GitHub owner" "$GITHUB_OWNER")"
-    save_config_value "GITHUB_REPO" "$(prompt_value "GitHub repository" "$GITHUB_REPO")"
-    save_config_value "REPO_BRANCH" "$(prompt_value "Git branch" "$REPO_BRANCH")"
-
-    reload_config
-    save_config_value "REPO_SSH_URL" "git@github.com:${GITHUB_OWNER}/${GITHUB_REPO}.git"
-    save_config_value "REPO_HTTPS_URL" "https://${GITHUB_HOST}/${GITHUB_OWNER}/${GITHUB_REPO}.git"
+    echo ""
+    echo "Repository update method:"
+    echo "  1) HTTPS (recommended for public repositories)"
+    echo "  2) SSH deploy key (recommended for private repositories)"
+    read -r -p "Choice [current: $CLONE_METHOD]: " answer
+    case "$answer" in
+      2) save_config_value "CLONE_METHOD" "ssh" ;;
+      1) save_config_value "CLONE_METHOD" "https" ;;
+      *) save_config_value "CLONE_METHOD" "$CLONE_METHOD" ;;
+    esac
   else
     save_config_value "USE_GIT_DEPLOY" "no"
     save_config_value "AUTO_DEPLOY_ENABLE" "no"
   fi
 
-  save_config_value "APP_USER" "$(prompt_value "Application runtime user" "$APP_USER")"
-  save_config_value "DEPLOY_USER" "$(prompt_value "Deploy user" "$DEPLOY_USER")"
+  app_user_choice="$(prompt_value "Application runtime user" "$APP_USER")"
+  save_config_value "APP_USER" "$app_user_choice"
+  if [[ "$USE_GIT_DEPLOY" == "yes" ]]; then
+    if prompt_yes_no "Do you want a dedicated auto-deploy user separate from the app runtime user" "yes"; then
+      dedicated_deploy_user_answer="$(prompt_value "Dedicated deploy user" "$DEPLOY_USER")"
+      save_config_value "DEPLOY_USER" "$dedicated_deploy_user_answer"
+    else
+      save_config_value "DEPLOY_USER" "$app_user_choice"
+    fi
+  else
+    save_config_value "DEPLOY_USER" "$app_user_choice"
+  fi
+
   save_config_value "APP_DIR" "$(prompt_value "Live application directory" "$APP_DIR")"
-  save_config_value "DEPLOY_DIR" "$(prompt_value "Deploy checkout directory" "$DEPLOY_DIR")"
   save_config_value "BACKEND_PORT" "$(prompt_value "Backend port" "$BACKEND_PORT")"
   save_config_value "SERVICE_NAME" "$(prompt_value "systemd service name" "$SERVICE_NAME")"
 
