@@ -292,6 +292,10 @@ ensure_repo_checkout() {
     log "Deploy checkout already exists at $DEPLOY_DIR"
   fi
 
+  # Existing checkouts may have been created by a different user during manual setup.
+  # Normalize ownership before running git as the dedicated deploy user.
+  ensure_tree_owner "$DEPLOY_DIR" "$DEPLOY_USER"
+
   git_as_deploy -C "$DEPLOY_DIR" remote set-url origin "$REPO_FETCH_URL"
   git_as_deploy -C "$DEPLOY_DIR" fetch --all --prune
   git_as_deploy -C "$DEPLOY_DIR" checkout "$REPO_BRANCH"
