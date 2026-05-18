@@ -90,6 +90,20 @@ safe_apt_update() {
   return 0
 }
 
+install_package_list() {
+  local package_string="$1"
+  local old_ifs="$IFS"
+  local -a packages=()
+
+  IFS=' '
+  # shellcheck disable=SC2206
+  packages=($package_string)
+  IFS="$old_ifs"
+
+  [[ ${#packages[@]} -gt 0 ]] || die "Package list is empty"
+  apt-get install -y "${packages[@]}"
+}
+
 prompt_yes_no() {
   local prompt="$1"
   local default_value="$2"
@@ -183,7 +197,7 @@ ensure_user() {
 ensure_base_packages() {
   log "Installing base packages"
   safe_apt_update
-  apt-get install -y $BASE_PACKAGES
+  install_package_list "$BASE_PACKAGES"
 }
 
 ensure_runtime_commands() {
