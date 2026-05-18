@@ -80,6 +80,20 @@ ensure_bootstrap_packages() {
   apt-get install -y ca-certificates curl git python3
 }
 
+bootstrap_git() {
+  local repo_dir="$1"
+  shift
+
+  local owner_user
+  owner_user="$(stat -c '%U' "$repo_dir")"
+
+  if [[ -n "$owner_user" && "$owner_user" != "root" ]]; then
+    sudo -u "$owner_user" git -C "$repo_dir" "$@"
+  else
+    git -C "$repo_dir" "$@"
+  fi
+}
+
 bootstrap_repo_checkout() {
   local github_owner github_repo repo_branch repo_dir repo_url
 
@@ -102,9 +116,9 @@ bootstrap_repo_checkout() {
   mkdir -p /opt
   if [[ -d "$repo_dir/.git" ]]; then
     log "Refreshing existing repository checkout at $repo_dir"
-    git -C "$repo_dir" fetch --all --prune
-    git -C "$repo_dir" checkout "$repo_branch"
-    git -C "$repo_dir" reset --hard "origin/$repo_branch"
+    bootstrap_git "$repo_dir" fetch --all --prune
+    bootstrap_git "$repo_dir" checkout "$repo_branch"
+    bootstrap_git "$repo_dir" reset --hard "origin/$repo_branch"
   else
     mkdir -p "$repo_dir"
     if find "$repo_dir" -mindepth 1 -maxdepth 1 | read -r _; then
