@@ -1,11 +1,15 @@
 from functools import cached_property
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=(".env", ".env.local"),
+        env_file_encoding="utf-8",
+    )
 
     app_name: str = "LetsCook"
     api_prefix: str = "/api"
@@ -20,6 +24,10 @@ class Settings(BaseSettings):
     @cached_property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.backend_cors_origins.split(",") if origin.strip()]
+
+    @cached_property
+    def media_root_path(self) -> str:
+        return str((Path(__file__).resolve().parents[2] / self.media_root).resolve())
 
 
 settings = Settings()

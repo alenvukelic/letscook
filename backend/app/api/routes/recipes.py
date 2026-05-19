@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -14,6 +15,7 @@ from app.models import (
     Category,
     Ingredient,
     IngredientTranslation,
+    Media,
     Recipe,
     RecipeIngredient,
     User,
@@ -26,6 +28,7 @@ from app.schemas.recipe import (
     RecipeFormOptions,
     RecipeIngredientView,
     RecipeListItem,
+    RecipeMediaView,
     RecipeVisibilityUpdate,
     RecipeWrite,
 )
@@ -61,6 +64,7 @@ def serialize_recipe_list_item(
     *,
     author_name: str,
     category_name: str | None,
+    main_image_url: str | None,
     user: User | None,
 ) -> RecipeListItem:
     return RecipeListItem(
@@ -75,6 +79,7 @@ def serialize_recipe_list_item(
         deleted=recipe.deleted,
         created_at=recipe.created_at,
         updated_at=recipe.updated_at,
+        main_image_url=main_image_url,
         can_edit=bool(user and user_can_edit_recipe(user, recipe) and not recipe.deleted),
         can_hide=bool(user and user_can_hide_recipe(user) and not recipe.deleted),
         can_delete=bool(user and user_can_delete_recipe(user)),
@@ -175,6 +180,41 @@ async def load_recipe_ingredients(
     return ingredients
 
 
+def media_url(storage_path: str) -> str:
+    normalized = storage_path.replace("\\", "/")
+    prefix = "var/media/"
+    if normalized.startswith(prefix):
+        normalized = normalized[len(prefix) :]
+    return f"/media/{normalized.lstrip('/')}"
+
+
+async def load_recipe_media(session: AsyncSession, recipe_id: int) -> list[RecipeMediaView]:
+    rows = await session.execute(
+        select(Media.id, Media.original_filename, Media.storage_path, Media.width, Media.height)
+        .where(Media.recipe_id == recipe_id)
+        .order_by(Media.id.asc())
+    )
+    return [
+        RecipeMediaView(
+            id=row.id,
+            original_filename=row.original_filename,
+            url=media_url(row.storage_path),
+            width=row.width,
+            height=row.height,
+        )
+        for row in rows
+    ]
+
+
+def extract_steps(steps_html: str) -> list[str]:
+    ordered_matches = re.findall(r"<li>(.*?)</li>", steps_html, flags=re.IGNORECASE | re.DOTALL)
+    if ordered_matches:
+        return [re.sub(r"<[^>]+>", "", item).strip() for item in ordered_matches if item.strip()]
+
+    paragraph_matches = re.findall(r"<p>(.*?)</p>", steps_html, flags=re.IGNORECASE | re.DOTALL)
+    return [re.sub(r"<[^>]+>", "", item).strip() for item in paragraph_matches if item.strip()]
+
+
 @router.get("", response_model=list[RecipeListItem])
 async def list_recipes(
     q: str | None = Query(default=None),
@@ -183,10 +223,11 @@ async def list_recipes(
     current_user: User | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[RecipeListItem]:
-    statement: Select[tuple[Recipe, str, str | None]] = (
-        select(Recipe, User.display_name, Category.name)
+    statement: Select[tuple[Recipe, str, str | None, str | None]] = (
+        select(Recipe, User.display_name, Category.name, Media.storage_path)
         .join(User, User.id == Recipe.author_id)
         .outerjoin(Category, Category.id == Recipe.category_id)
+        .outerjoin(Media, Media.id == Recipe.main_media_id)
     )
 
     if q:
@@ -227,9 +268,10 @@ async def list_recipes(
             recipe,
             author_name=author_name,
             category_name=category_name,
+            main_image_url=media_url(storage_path) if storage_path else None,
             user=current_user,
         )
-        for recipe, author_name, category_name in rows.all()
+        for recipe, author_name, category_name, storage_path in rows.all()
     ]
 
 
@@ -286,32 +328,37 @@ async def recipe_detail(
     session: AsyncSession = Depends(get_session),
 ) -> RecipeDetail:
     row = await session.execute(
-        select(Recipe, User.display_name, Category.name)
+        select(Recipe, User.display_name, Category.name, Media.storage_path)
         .join(User, User.id == Recipe.author_id)
         .outerjoin(Category, Category.id == Recipe.category_id)
+        .outerjoin(Media, Media.id == Recipe.main_media_id)
         .where(Recipe.id == recipe_id)
     )
     result = row.first()
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
 
-    recipe, author_name, category_name = result
+    recipe, author_name, category_name, storage_path = result
     if not recipe_visible_to_user(recipe, current_user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
 
     ingredients = await load_recipe_ingredients(session, recipe.id, language=language)
+    media = await load_recipe_media(session, recipe.id)
     list_item = serialize_recipe_list_item(
         recipe,
         author_name=author_name,
         category_name=category_name,
+        main_image_url=media_url(storage_path) if storage_path else None,
         user=current_user,
     )
     return RecipeDetail(
         **list_item.model_dump(),
         category_id=recipe.category_id,
         steps_html=recipe.steps_html,
+        steps=extract_steps(recipe.steps_html),
         author_id=recipe.author_id,
         ingredients=ingredients,
+        media=media,
     )
 
 

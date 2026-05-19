@@ -49,6 +49,14 @@ class RecipeIngredientView(BaseModel):
     sort_order: int
 
 
+class RecipeMediaView(BaseModel):
+    id: int
+    original_filename: str
+    url: str
+    width: int | None
+    height: int | None
+
+
 class RecipeListItem(BaseModel):
     id: int
     title: str
@@ -61,6 +69,7 @@ class RecipeListItem(BaseModel):
     deleted: bool
     created_at: datetime
     updated_at: datetime
+    main_image_url: str | None
     can_edit: bool
     can_hide: bool
     can_delete: bool
@@ -69,8 +78,10 @@ class RecipeListItem(BaseModel):
 class RecipeDetail(RecipeListItem):
     category_id: int | None
     steps_html: str
+    steps: list[str]
     author_id: int
     ingredients: list[RecipeIngredientView]
+    media: list[RecipeMediaView]
 
 
 class RecipeVisibilityUpdate(BaseModel):

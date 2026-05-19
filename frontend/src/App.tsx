@@ -26,6 +26,14 @@ type IngredientOption = {
   name: string;
 };
 
+type RecipeMedia = {
+  id: number;
+  original_filename: string;
+  url: string;
+  width: number | null;
+  height: number | null;
+};
+
 type RecipeListItem = {
   id: number;
   title: string;
@@ -38,6 +46,7 @@ type RecipeListItem = {
   deleted: boolean;
   created_at: string;
   updated_at: string;
+  main_image_url: string | null;
   can_edit: boolean;
   can_hide: boolean;
   can_delete: boolean;
@@ -57,8 +66,10 @@ type RecipeIngredient = {
 type RecipeDetail = RecipeListItem & {
   category_id: number | null;
   steps_html: string;
+  steps: string[];
   author_id: number;
   ingredients: RecipeIngredient[];
+  media: RecipeMedia[];
 };
 
 type RecipeFormOptions = {
@@ -83,6 +94,12 @@ type RecipeFormState = {
   ingredients: RecipeFormIngredient[];
 };
 
+type Route =
+  | { name: "list" }
+  | { name: "detail"; recipeId: number }
+  | { name: "new" }
+  | { name: "edit"; recipeId: number };
+
 const emptyIngredientRow = (): RecipeFormIngredient => ({
   ingredient_id: 0,
   amount: "",
@@ -99,6 +116,34 @@ const emptyRecipeForm = (): RecipeFormState => ({
   author_complexity: "3",
   ingredients: [emptyIngredientRow()],
 });
+
+function parseRoute(): Route {
+  const hash = window.location.hash.replace(/^#/, "") || "/recipes";
+  const parts = hash.split("/").filter(Boolean);
+
+  if (parts[0] !== "recipes") {
+    return { name: "list" };
+  }
+  if (parts.length === 1) {
+    return { name: "list" };
+  }
+  if (parts[1] === "new") {
+    return { name: "new" };
+  }
+
+  const recipeId = Number(parts[1]);
+  if (!Number.isFinite(recipeId)) {
+    return { name: "list" };
+  }
+  if (parts[2] === "edit") {
+    return { name: "edit", recipeId };
+  }
+  return { name: "detail", recipeId };
+}
+
+function navigate(path: string) {
+  window.location.hash = path;
+}
 
 async function apiRequest<T>(
   path: string,
@@ -118,7 +163,6 @@ async function apiRequest<T>(
     const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new Error(payload?.detail ?? `Request failed with ${response.status}`);
   }
-
   return (await response.json()) as T;
 }
 
@@ -145,27 +189,43 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString("hr-HR");
 }
 
+function heroImage(recipe: RecipeDetail | RecipeListItem | null): string | null {
+  return recipe?.main_image_url ?? null;
+}
+
 export function App() {
+  const [route, setRoute] = useState<Route>(parseRoute());
   const [token, setToken] = useState<string | null>(localStorage.getItem(tokenStorageKey));
   const [user, setUser] = useState<User | null>(null);
   const [options, setOptions] = useState<RecipeFormOptions>({ categories: [], ingredients: [] });
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
-  const [selectedRecipe, setSelectedRecipe] = useState<RecipeDetail | null>(null);
-  const [selectedRecipeId, setSelectedRecipeId] = useState<number | null>(null);
+  const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
   const [query, setQuery] = useState("");
   const [mineOnly, setMineOnly] = useState(false);
   const [includeHidden, setIncludeHidden] = useState(false);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginEmail, setLoginEmail] = useState("durdica.vukelic@gmail.com");
   const [loginPassword, setLoginPassword] = useState("");
-  const [editorMode, setEditorMode] = useState<"closed" | "create" | "edit">("closed");
   const [formState, setFormState] = useState<RecipeFormState>(emptyRecipeForm());
-  const [saving, setSaving] = useState(false);
 
-  const isModerator = user?.role === "moderator" || user?.role === "administrator" || user?.role === "superadmin";
+  const isModerator =
+    user?.role === "moderator" || user?.role === "administrator" || user?.role === "superadmin";
+
+  useEffect(() => {
+    const syncRoute = () => setRoute(parseRoute());
+    window.addEventListener("hashchange", syncRoute);
+    return () => window.removeEventListener("hashchange", syncRoute);
+  }, []);
+
+  useEffect(() => {
+    if (!window.location.hash) {
+      navigate("/recipes");
+    }
+  }, []);
 
   useEffect(() => {
     void apiRequest<RecipeFormOptions>("/recipes/options?language=hr")
@@ -196,13 +256,21 @@ export function App() {
   }, [token, query, mineOnly, includeHidden]);
 
   useEffect(() => {
-    if (selectedRecipeId == null) {
-      setSelectedRecipe(null);
+    if (route.name === "detail" || route.name === "edit") {
+      void loadRecipeDetail(route.recipeId);
       return;
     }
+    setRecipeDetail(null);
+    if (route.name === "new") {
+      setFormState(emptyRecipeForm());
+    }
+  }, [route, token]);
 
-    void loadRecipeDetail(selectedRecipeId);
-  }, [selectedRecipeId, token]);
+  useEffect(() => {
+    if (route.name === "edit" && recipeDetail) {
+      setFormState(formFromRecipe(recipeDetail));
+    }
+  }, [route, recipeDetail]);
 
   async function loadRecipes() {
     setLoadingRecipes(true);
@@ -222,13 +290,6 @@ export function App() {
     try {
       const list = await apiRequest<RecipeListItem[]>(`/recipes?${params.toString()}`, {}, token);
       setRecipes(list);
-
-      if (selectedRecipeId && !list.some((recipe) => recipe.id === selectedRecipeId)) {
-        setSelectedRecipeId(list[0]?.id ?? null);
-      }
-      if (!selectedRecipeId && list[0]) {
-        setSelectedRecipeId(list[0].id);
-      }
     } catch (error) {
       setAppError((error as Error).message);
     } finally {
@@ -238,9 +299,10 @@ export function App() {
 
   async function loadRecipeDetail(recipeId: number) {
     setLoadingDetail(true);
+    setAppError(null);
     try {
       const detail = await apiRequest<RecipeDetail>(`/recipes/${recipeId}?language=hr`, {}, token);
-      setSelectedRecipe(detail);
+      setRecipeDetail(detail);
     } catch (error) {
       setAppError((error as Error).message);
     } finally {
@@ -273,29 +335,8 @@ export function App() {
     setUser(null);
     setMineOnly(false);
     setIncludeHidden(false);
-    setEditorMode("closed");
     setNotice("Odjavljen si.");
-  }
-
-  function startCreateRecipe() {
-    setEditorMode("create");
-    setFormState(emptyRecipeForm());
-    setNotice(null);
-  }
-
-  function startEditRecipe() {
-    if (!selectedRecipe) {
-      return;
-    }
-
-    setEditorMode("edit");
-    setFormState(formFromRecipe(selectedRecipe));
-    setNotice(null);
-  }
-
-  function closeEditor() {
-    setEditorMode("closed");
-    setFormState(emptyRecipeForm());
+    navigate("/recipes");
   }
 
   function updateIngredientRow(index: number, patch: Partial<RecipeFormIngredient>) {
@@ -352,21 +393,17 @@ export function App() {
     };
 
     try {
-      const path =
-        editorMode === "edit" && selectedRecipe
-          ? `/recipes/${selectedRecipe.id}`
-          : "/recipes";
-      const method = editorMode === "edit" ? "PUT" : "POST";
+      const isEdit = route.name === "edit" && recipeDetail;
+      const path = isEdit ? `/recipes/${recipeDetail.id}` : "/recipes";
+      const method = isEdit ? "PUT" : "POST";
       const saved = await apiRequest<RecipeDetail>(
         path,
         { method, body: JSON.stringify(payload) },
         token,
       );
-      setSelectedRecipeId(saved.id);
-      setSelectedRecipe(saved);
-      setEditorMode("closed");
-      setNotice(editorMode === "edit" ? "Recept je ažuriran." : "Recept je kreiran.");
+      setNotice(isEdit ? "Recept je ažuriran." : "Recept je kreiran.");
       await loadRecipes();
+      navigate(`/recipes/${saved.id}`);
     } catch (error) {
       setAppError((error as Error).message);
     } finally {
@@ -375,20 +412,17 @@ export function App() {
   }
 
   async function updateVisibility(patch: { hidden?: boolean; deleted?: boolean }) {
-    if (!selectedRecipe || !token) {
+    if (!recipeDetail || !token) {
       return;
     }
 
     try {
       const updated = await apiRequest<RecipeDetail>(
-        `/recipes/${selectedRecipe.id}/visibility`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(patch),
-        },
+        `/recipes/${recipeDetail.id}/visibility`,
+        { method: "PATCH", body: JSON.stringify(patch) },
         token,
       );
-      setSelectedRecipe(updated);
+      setRecipeDetail(updated);
       setNotice("Status recepta je promijenjen.");
       await loadRecipes();
     } catch (error) {
@@ -396,130 +430,192 @@ export function App() {
     }
   }
 
+  const listHeroRecipe = recipes[0] ?? null;
+
   return (
-    <main class="app-shell">
-      <section class="sidebar">
-        <div class="panel brand-panel">
-          <p class="eyebrow">LetsCook</p>
-          <h1>Recepti, prijava i uređivanje su sada spojeni na API.</h1>
-          <p class="muted">
-            Prijava koristi postojeće korisnike iz baze. Korisnici uređuju svoje recepte, moderatori
-            skrivaju, a administratori i superadmin mogu i označiti recept kao obrisan.
-          </p>
-        </div>
+    <main class="shell">
+      <header class="topbar">
+        <button type="button" class="brand" onClick={() => navigate("/recipes")}>
+          <span class="brand-mark">LC</span>
+          <span>LetsCook</span>
+        </button>
 
-        <div class="panel auth-panel">
-          <div class="panel-header">
-            <h2>Sign in</h2>
-            {user ? <span class="role-pill">{user.role}</span> : null}
-          </div>
-
+        <div class="topbar-actions">
           {user ? (
-            <div class="stack gap-sm">
-              <p>
-                <strong>{user.display_name}</strong>
-                <br />
-                <span class="muted">{user.email}</span>
-              </p>
+            <>
+              <span class="role-pill">{user.display_name} · {user.role}</span>
+              <button type="button" class="ghost" onClick={() => navigate("/recipes/new")}>
+                Novi recept
+              </button>
               <button type="button" class="secondary" onClick={handleLogout}>
                 Sign out
               </button>
-            </div>
-          ) : (
-            <form class="stack gap-sm" onSubmit={handleLogin}>
-              <label>
-                Email
-                <input value={loginEmail} onInput={(event) => setLoginEmail((event.currentTarget as HTMLInputElement).value)} />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onInput={(event) => setLoginPassword((event.currentTarget as HTMLInputElement).value)}
-                />
-              </label>
-              <button type="submit" class="primary">
-                Sign in
-              </button>
-            </form>
-          )}
+            </>
+          ) : null}
         </div>
+      </header>
 
-        <div class="panel">
-          <div class="panel-header">
-            <h2>Pretraga</h2>
-            {loadingRecipes ? <span class="muted">Ucitavanje...</span> : null}
+      {appError ? <div class="alert error">{appError}</div> : null}
+      {notice ? <div class="alert notice">{notice}</div> : null}
+
+      {!user ? (
+        <section class="login-banner panel">
+          <div>
+            <p class="eyebrow">Prijava</p>
+            <h1>Prijavi se i nastavi uređivati recepte.</h1>
+            <p class="muted">Recepti su sada otvarivi preko URL-a i pregledniji na zasebnoj recipe stranici.</p>
           </div>
-          <div class="stack gap-sm">
+          <form class="login-form" onSubmit={handleLogin}>
             <label>
-              Naziv ili sastojak
+              Email
+              <input value={loginEmail} onInput={(event) => setLoginEmail((event.currentTarget as HTMLInputElement).value)} />
+            </label>
+            <label>
+              Password
+              <input type="password" value={loginPassword} onInput={(event) => setLoginPassword((event.currentTarget as HTMLInputElement).value)} />
+            </label>
+            <button type="submit" class="primary">Sign in</button>
+          </form>
+        </section>
+      ) : null}
+
+      {route.name === "list" ? (
+        <section class="list-layout">
+          <aside class="filters panel">
+            <p class="eyebrow">Pretraga</p>
+            <h2>Pronađi recept za dijeljenje ili uređivanje.</h2>
+            <label>
+              Naslov ili sastojak
               <input value={query} onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)} />
             </label>
             <label class="checkbox-row">
-              <input
-                type="checkbox"
-                checked={mineOnly}
-                disabled={!user}
-                onChange={(event) => setMineOnly((event.currentTarget as HTMLInputElement).checked)}
-              />
+              <input type="checkbox" checked={mineOnly} disabled={!user} onChange={(event) => setMineOnly((event.currentTarget as HTMLInputElement).checked)} />
               <span>Samo moji recepti</span>
             </label>
             <label class="checkbox-row">
-              <input
-                type="checkbox"
-                checked={includeHidden}
-                disabled={!isModerator}
-                onChange={(event) => setIncludeHidden((event.currentTarget as HTMLInputElement).checked)}
-              />
+              <input type="checkbox" checked={includeHidden} disabled={!isModerator} onChange={(event) => setIncludeHidden((event.currentTarget as HTMLInputElement).checked)} />
               <span>Prikaži skrivene</span>
             </label>
-            {user ? (
-              <button type="button" class="primary" onClick={startCreateRecipe}>
-                Novi recept
-              </button>
-            ) : null}
-          </div>
-        </div>
+            <p class="muted small">URL svakog recepta je shareable preko `#/recipes/&lt;id&gt;`.</p>
+          </aside>
 
-        <div class="panel recipe-list-panel">
-          <div class="panel-header">
-            <h2>Recepti</h2>
-            <span class="count-pill">{recipes.length}</span>
-          </div>
-          <div class="recipe-list">
-            {recipes.map((recipe) => (
-              <button
-                key={recipe.id}
-                type="button"
-                class={`recipe-card ${selectedRecipeId === recipe.id ? "selected" : ""}`}
-                onClick={() => setSelectedRecipeId(recipe.id)}
-              >
-                <div class="recipe-card-header">
-                  <strong>{recipe.title}</strong>
-                  {recipe.hidden ? <span class="status-tag">hidden</span> : null}
-                </div>
-                <span class="muted">{recipe.author_name}</span>
-                <span class="muted">{recipe.category_name ?? "Bez kategorije"}</span>
-              </button>
-            ))}
-            {!recipes.length && !loadingRecipes ? <p class="muted">Nema recepata za prikaz.</p> : null}
-          </div>
-        </div>
-      </section>
+          <section class="list-content">
+            <article class="hero-card panel">
+              <div>
+                <p class="eyebrow">Kolekcija recepata</p>
+                <h1>{listHeroRecipe?.title ?? "Recepti"}</h1>
+                <p class="muted">{listHeroRecipe ? `${listHeroRecipe.author_name} · ${listHeroRecipe.category_name ?? "Bez kategorije"}` : "Odaberi recept iz liste ispod."}</p>
+              </div>
+              {heroImage(listHeroRecipe) ? <img class="hero-image" src={heroImage(listHeroRecipe)!} alt={listHeroRecipe?.title ?? "Recipe"} /> : null}
+            </article>
 
-      <section class="content">
-        {appError ? <div class="alert error">{appError}</div> : null}
-        {notice ? <div class="alert notice">{notice}</div> : null}
-
-        {editorMode !== "closed" ? (
-          <form class="panel editor-panel stack gap-md" onSubmit={saveRecipe}>
-            <div class="panel-header">
-              <h2>{editorMode === "edit" ? "Uredi recept" : "Novi recept"}</h2>
-              <button type="button" class="ghost" onClick={closeEditor}>
-                Zatvori
-              </button>
+            <div class="recipe-grid">
+              {recipes.map((recipe) => (
+                <article key={recipe.id} class="recipe-tile panel">
+                  <button type="button" class="tile-link" onClick={() => navigate(`/recipes/${recipe.id}`)}>
+                    {recipe.main_image_url ? <img class="tile-image" src={recipe.main_image_url} alt={recipe.title} /> : <div class="tile-placeholder">{recipe.title.slice(0, 2)}</div>}
+                    <div class="tile-body">
+                      <div class="tile-meta">
+                        <span>{recipe.category_name ?? "Bez kategorije"}</span>
+                        {recipe.hidden ? <span class="status-tag">hidden</span> : null}
+                      </div>
+                      <h3>{recipe.title}</h3>
+                      <p>{recipe.author_name}</p>
+                      <p class="muted">{recipe.servings} porcija · kompleksnost {recipe.author_complexity}/5</p>
+                    </div>
+                  </button>
+                </article>
+              ))}
+              {!recipes.length && !loadingRecipes ? <div class="panel empty-card">Nema recepata za prikaz.</div> : null}
             </div>
+          </section>
+        </section>
+      ) : null}
+
+      {route.name === "detail" ? (
+        <section class="detail-layout">
+          <div class="detail-main">
+            <div class="detail-toolbar">
+              <button type="button" class="ghost" onClick={() => navigate("/recipes")}>
+                Natrag na listu
+              </button>
+              <div class="action-row compact">
+                {recipeDetail?.can_edit ? <button type="button" class="secondary" onClick={() => navigate(`/recipes/${recipeDetail.id}/edit`)}>Uredi</button> : null}
+                {recipeDetail?.can_hide ? <button type="button" class="secondary" onClick={() => updateVisibility({ hidden: !recipeDetail.hidden })}>{recipeDetail.hidden ? "Prikaži" : "Sakrij"}</button> : null}
+                {recipeDetail?.can_delete ? <button type="button" class="ghost danger" onClick={() => updateVisibility({ deleted: !recipeDetail.deleted })}>{recipeDetail.deleted ? "Vrati" : "Označi obrisanim"}</button> : null}
+              </div>
+            </div>
+
+            {recipeDetail ? (
+              <article class="recipe-page panel">
+                <p class="eyebrow">Recipe URL</p>
+                <h1>{recipeDetail.title}</h1>
+                <div class="meta-strip">
+                  <span>{recipeDetail.author_name}</span>
+                  <span>{recipeDetail.category_name ?? "Bez kategorije"}</span>
+                  <span>{recipeDetail.servings} porcija</span>
+                  <span>Kompleksnost {recipeDetail.author_complexity}/5</span>
+                </div>
+
+                {recipeDetail.media.length ? (
+                  <section class="media-gallery">
+                    {recipeDetail.media.map((media) => (
+                      <img key={media.id} src={media.url} alt={recipeDetail.title} class="gallery-image" />
+                    ))}
+                  </section>
+                ) : null}
+
+                <div class="recipe-columns">
+                  <div class="recipe-story">
+                    <section class="story-block">
+                      <h2>Postupak</h2>
+                      <ol class="steps-list">
+                        {recipeDetail.steps.map((step, index) => (
+                          <li key={`${recipeDetail.id}-${index}`}>{step}</li>
+                        ))}
+                      </ol>
+                    </section>
+
+                    <section class="story-block notes-block">
+                      <h2>Meta</h2>
+                      <p>Objavljeno: {formatDate(recipeDetail.created_at)}</p>
+                      <p>Ažurirano: {formatDate(recipeDetail.updated_at)}</p>
+                    </section>
+                  </div>
+
+                  <aside class="ingredients-rail panel">
+                    <p class="eyebrow">Sastojci</p>
+                    <div class="ingredients-stack">
+                      {recipeDetail.ingredients.map((ingredient) => (
+                        <div key={ingredient.id} class="ingredient-chip-row">
+                          <strong>{ingredient.ingredient_name}</strong>
+                          <span>{ingredient.amount ?? "-"} {ingredient.unit ?? ""}</span>
+                          <span class="muted">{ingredient.note ?? ingredient.canonical_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+                </div>
+              </article>
+            ) : (
+              <div class="panel empty-card">{loadingDetail ? "Učitavam recept..." : "Recept nije pronađen."}</div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {(route.name === "new" || route.name === "edit") ? (
+        <section class="editor-layout">
+          <form class="panel editor-page" onSubmit={saveRecipe}>
+            <div class="detail-toolbar">
+              <button type="button" class="ghost" onClick={() => navigate(route.name === "edit" && recipeDetail ? `/recipes/${recipeDetail.id}` : "/recipes")}>
+                Natrag
+              </button>
+              <button type="submit" class="primary" disabled={saving}>{saving ? "Spremam..." : route.name === "edit" ? "Spremi izmjene" : "Kreiraj recept"}</button>
+            </div>
+
+            <p class="eyebrow">Editor</p>
+            <h1>{route.name === "edit" ? "Uredi recept" : "Novi recept"}</h1>
 
             <div class="grid two-columns">
               <label>
@@ -530,11 +626,7 @@ export function App() {
                 Kategorija
                 <select value={formState.category_id} onChange={(event) => setFormState({ ...formState, category_id: (event.currentTarget as HTMLSelectElement).value })}>
                   <option value="">Bez kategorije</option>
-                  {options.categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
+                  {options.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
                 </select>
               </label>
               <label>
@@ -546,142 +638,43 @@ export function App() {
                 </select>
               </label>
               <label>
-                Servings
+                Porcije
                 <input type="number" min="1" step="0.5" value={formState.servings} onInput={(event) => setFormState({ ...formState, servings: (event.currentTarget as HTMLInputElement).value })} />
               </label>
               <label>
-                Complexity
+                Kompleksnost
                 <input type="number" min="1" max="5" value={formState.author_complexity} onInput={(event) => setFormState({ ...formState, author_complexity: (event.currentTarget as HTMLInputElement).value })} />
               </label>
             </div>
 
             <label>
-              Koraci
-              <textarea rows={10} value={formState.steps_html} onInput={(event) => setFormState({ ...formState, steps_html: (event.currentTarget as HTMLTextAreaElement).value })} />
+              Postupak
+              <textarea rows={12} value={formState.steps_html} onInput={(event) => setFormState({ ...formState, steps_html: (event.currentTarget as HTMLTextAreaElement).value })} />
             </label>
 
-            <div class="stack gap-sm">
+            <div class="editor-ingredients panel">
               <div class="panel-header">
-                <h3>Sastojci</h3>
-                <button type="button" class="ghost" onClick={addIngredientRow}>
-                  Dodaj red
-                </button>
+                <h2>Sastojci</h2>
+                <button type="button" class="ghost" onClick={addIngredientRow}>Dodaj red</button>
               </div>
-
-              {formState.ingredients.map((ingredient, index) => (
-                <div key={`${index}-${ingredient.ingredient_id}`} class="ingredient-editor-row">
-                  <select value={ingredient.ingredient_id} onChange={(event) => updateIngredientRow(index, { ingredient_id: Number((event.currentTarget as HTMLSelectElement).value) })}>
-                    <option value="0">Odaberi sastojak</option>
-                    {options.ingredients.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                  <input placeholder="Količina" value={ingredient.amount} onInput={(event) => updateIngredientRow(index, { amount: (event.currentTarget as HTMLInputElement).value })} />
-                  <input placeholder="Jedinica" value={ingredient.unit} onInput={(event) => updateIngredientRow(index, { unit: (event.currentTarget as HTMLInputElement).value })} />
-                  <input placeholder="Napomena" value={ingredient.note} onInput={(event) => updateIngredientRow(index, { note: (event.currentTarget as HTMLInputElement).value })} />
-                  <button type="button" class="ghost danger" onClick={() => removeIngredientRow(index)}>
-                    Makni
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div class="action-row">
-              <button type="submit" class="primary" disabled={saving}>
-                {saving ? "Spremam..." : editorMode === "edit" ? "Spremi izmjene" : "Kreiraj recept"}
-              </button>
-              <button type="button" class="secondary" onClick={closeEditor}>
-                Odustani
-              </button>
-            </div>
-          </form>
-        ) : null}
-
-        {selectedRecipe ? (
-          <article class="panel detail-panel stack gap-md">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Detalj recepta</p>
-                <h2>{selectedRecipe.title}</h2>
-              </div>
-              <div class="action-row compact">
-                {selectedRecipe.can_edit ? (
-                  <button type="button" class="secondary" onClick={startEditRecipe}>
-                    Uredi
-                  </button>
-                ) : null}
-                {selectedRecipe.can_hide ? (
-                  <button
-                    type="button"
-                    class="secondary"
-                    onClick={() => updateVisibility({ hidden: !selectedRecipe.hidden })}
-                  >
-                    {selectedRecipe.hidden ? "Prikaži" : "Sakrij"}
-                  </button>
-                ) : null}
-                {selectedRecipe.can_delete ? (
-                  <button type="button" class="ghost danger" onClick={() => updateVisibility({ deleted: !selectedRecipe.deleted })}>
-                    {selectedRecipe.deleted ? "Vrati" : "Označi obrisanim"}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
-            <div class="meta-grid">
-              <div>
-                <strong>Autor</strong>
-                <p>{selectedRecipe.author_name}</p>
-              </div>
-              <div>
-                <strong>Kategorija</strong>
-                <p>{selectedRecipe.category_name ?? "Bez kategorije"}</p>
-              </div>
-              <div>
-                <strong>Servings</strong>
-                <p>{selectedRecipe.servings}</p>
-              </div>
-              <div>
-                <strong>Complexity</strong>
-                <p>{selectedRecipe.author_complexity}/5</p>
-              </div>
-              <div>
-                <strong>Kreirano</strong>
-                <p>{formatDate(selectedRecipe.created_at)}</p>
-              </div>
-              <div>
-                <strong>Ažurirano</strong>
-                <p>{formatDate(selectedRecipe.updated_at)}</p>
-              </div>
-            </div>
-
-            <section>
-              <h3>Sastojci</h3>
-              <div class="ingredient-list">
-                {selectedRecipe.ingredients.map((ingredient) => (
-                  <div key={ingredient.id} class="ingredient-row">
-                    <strong>{ingredient.ingredient_name}</strong>
-                    <span>
-                      {ingredient.amount ?? "-"} {ingredient.unit ?? ""}
-                    </span>
-                    <span class="muted">{ingredient.note ?? ingredient.canonical_name}</span>
+              <div class="editor-ingredient-table">
+                {formState.ingredients.map((ingredient, index) => (
+                  <div key={`${index}-${ingredient.ingredient_id}`} class="ingredient-editor-row">
+                    <select value={ingredient.ingredient_id} onChange={(event) => updateIngredientRow(index, { ingredient_id: Number((event.currentTarget as HTMLSelectElement).value) })}>
+                      <option value="0">Odaberi sastojak</option>
+                      {options.ingredients.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+                    </select>
+                    <input placeholder="Količina" value={ingredient.amount} onInput={(event) => updateIngredientRow(index, { amount: (event.currentTarget as HTMLInputElement).value })} />
+                    <input placeholder="Jedinica" value={ingredient.unit} onInput={(event) => updateIngredientRow(index, { unit: (event.currentTarget as HTMLInputElement).value })} />
+                    <input placeholder="Napomena" value={ingredient.note} onInput={(event) => updateIngredientRow(index, { note: (event.currentTarget as HTMLInputElement).value })} />
+                    <button type="button" class="ghost danger" onClick={() => removeIngredientRow(index)}>Makni</button>
                   </div>
                 ))}
               </div>
-            </section>
-
-            <section>
-              <h3>Koraci</h3>
-              <div class="steps-box" dangerouslySetInnerHTML={{ __html: selectedRecipe.steps_html }} />
-            </section>
-          </article>
-        ) : (
-          <div class="panel empty-panel">
-            {loadingDetail ? <p>Učitavam detalj recepta...</p> : <p>Odaberi recept s lijeve strane.</p>}
-          </div>
-        )}
-      </section>
+            </div>
+          </form>
+        </section>
+      ) : null}
     </main>
   );
 }

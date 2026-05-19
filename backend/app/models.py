@@ -103,6 +103,7 @@ class Recipe(Base):
     title: Mapped[str] = mapped_column(String, index=True)
     language: Mapped[str] = mapped_column(String(2), default="en")
     steps_html: Mapped[str] = mapped_column(Text)
+    main_media_id: Mapped[int | None] = mapped_column(ForeignKey("media.id"), nullable=True)
     servings: Mapped[float] = mapped_column(Numeric(8, 2))
     author_complexity: Mapped[int] = mapped_column(Integer)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -125,3 +126,18 @@ class RecipeIngredient(Base):
     unit: Mapped[str | None] = mapped_column(String, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Media(Base):
+    __tablename__ = "media"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    recipe_id: Mapped[int | None] = mapped_column(ForeignKey("recipes.id"), nullable=True)
+    original_filename: Mapped[str] = mapped_column(String)
+    stored_filename: Mapped[str] = mapped_column(String, unique=True)
+    mime_type: Mapped[str] = mapped_column(String)
+    byte_size: Mapped[int] = mapped_column(BigInteger)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    storage_path: Mapped[str] = mapped_column(String)
