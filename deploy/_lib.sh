@@ -397,8 +397,21 @@ ensure_backend_venv() {
     log "Backend virtualenv already exists at $VENV_PATH"
   fi
 
-  sudo -u "$APP_USER" "$VENV_PATH/bin/pip" install --upgrade pip
-  sudo -u "$APP_USER" bash -lc "cd '$APP_BACKEND_DIR' && '$VENV_PATH/bin/pip' install -e '.[dev]'"
+  if ! sudo -u "$APP_USER" "$VENV_PATH/bin/pip" install --upgrade pip; then
+    warn "Backend pip upgrade failed; rebuilding backend virtualenv once"
+    rm -rf "$VENV_PATH"
+    sudo -u "$APP_USER" "$PYTHON_BIN" -m venv "$VENV_PATH"
+    sudo -u "$APP_USER" "$VENV_PATH/bin/pip" install --upgrade pip
+  fi
+
+  if ! sudo -u "$APP_USER" bash -lc "cd '$APP_BACKEND_DIR' && '$VENV_PATH/bin/pip' install -e '.[dev]'"; then
+    warn "Backend editable install failed; rebuilding backend virtualenv once"
+    rm -rf "$VENV_PATH"
+    sudo -u "$APP_USER" "$PYTHON_BIN" -m venv "$VENV_PATH"
+    sudo -u "$APP_USER" "$VENV_PATH/bin/pip" install --upgrade pip
+    sudo -u "$APP_USER" bash -lc "cd '$APP_BACKEND_DIR' && '$VENV_PATH/bin/pip' install -e '.[dev]'"
+  fi
+
   ensure_tree_owner "$VENV_PATH" "$APP_USER"
 }
 

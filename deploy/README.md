@@ -127,9 +127,10 @@ This script:
 2. resyncs the live runtime tree
 3. repairs `.env` if needed
 4. reinstalls backend and frontend dependencies if required
-5. rebuilds the frontend
-6. restarts the service
-7. reloads nginx if nginx is enabled
+5. automatically rebuilds `backend/.venv` once if an existing virtualenv is broken during `pip` upgrade or editable install
+6. rebuilds the frontend
+7. restarts the service
+8. reloads nginx if nginx is enabled
 
 ## Diagnose
 
