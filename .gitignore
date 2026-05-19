@@ -17,6 +17,8 @@ coverage/
 .env
 .env.*
 !.env.example
+input-doc/
+var/
 
 # OS/editor
 .DS_Store
@@ -26,4 +28,5 @@ Thumbs.db
 
 # Private config
 PRIVATE.md
+private.md
 deploy/install.config

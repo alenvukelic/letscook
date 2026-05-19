@@ -7,11 +7,12 @@ LetsCook is a planned multilingual cookbook web app for adding, sharing, and sea
 This repository is in the first implementation stage.
 
 - Current contents: PostgreSQL schema script, FastAPI backend scaffold, Vite + Preact + TypeScript frontend scaffold, repo guidance docs, skill folders, and legal documents
-- Current app status: runnable frontend shell and backend health/meta API foundation; full product features are not implemented yet
+- Current contents also include a local seed/import utility for initial PostgreSQL data population from curated Word recipe sources
+- Current app status: sign-in, recipe listing, recipe create/edit, and role-aware recipe hide/delete flows are implemented; broader product areas are still in progress
 
 ## Planned Product Scope
 
-- Recipe creation with title, category, tags, ingredients, servings, rich-text steps, and author complexity
+- Recipe creation with title, category, tags, servings, rich-text steps, author complexity, and ingredient rows that support both canonical ingredient links and free text annotations
 - Recipe browsing and search across title, ingredients, tags, and steps
 - Ingredient-based search for recipes matching all or most selected ingredients
 - Ratings, community complexity votes, favorites, comments, and recipe relationships
@@ -85,10 +86,31 @@ npm install
 npm run dev
 ```
 
+If the PostgreSQL server is reachable only from `ubuntu-dev`, start the backend through the SSH tunnel helper:
+
+```powershell
+cd backend
+$env:SSH_PASSWORD="<ssh-password>"
+python run_dev_over_ssh.py
+```
+
 Database schema, once local PostgreSQL access is available:
 
 ```bash
 psql "$DATABASE_URL" -f db/schema.sql
+```
+
+Initial curated seed/import, once PostgreSQL access is available and `input-doc/` contains the private Word sources:
+
+```powershell
+python db\seed_initial_data.py
+```
+
+If PostgreSQL is reachable only through SSH, use:
+
+```powershell
+$env:SSH_PASSWORD="<ssh-password>"
+python db\run_seed_over_ssh.py
 ```
 
 The frontend dev server defaults to `http://localhost:5173`; the backend API defaults to `http://localhost:8000/api`.
@@ -120,6 +142,8 @@ npm run build
 ## Roadmap Notes
 
 The initial system blueprint expects core tables and features around users, categories, tags, recipe tags, recipes, canonical ingredients, ingredient translations, recipe ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, views, action definitions, and unified audit/activity logging.
+
+The current schema also includes `category_translations`, `tag_translations`, and `recipe_translations` for multilingual seed data.
 
 Planning guidance for major work areas is organized under `skills/` and indexed by `skills_manifest.yaml`.
 

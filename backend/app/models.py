@@ -37,6 +37,7 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.user)
     banned: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Action(Base):
@@ -84,6 +85,15 @@ class Ingredient(Base):
     canonical_name: Mapped[str] = mapped_column(String, unique=True, index=True)
 
 
+class IngredientTranslation(Base):
+    __tablename__ = "ingredient_translations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"))
+    language: Mapped[str] = mapped_column(String(2))
+    name: Mapped[str] = mapped_column(String)
+
+
 class Recipe(Base):
     __tablename__ = "recipes"
 
@@ -99,5 +109,19 @@ class Recipe(Base):
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     hidden_id: Mapped[int | None] = mapped_column(ForeignKey("action_log.id"), nullable=True)
     deleted_id: Mapped[int | None] = mapped_column(ForeignKey("action_log.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     author: Mapped[User] = relationship()
+
+
+class RecipeIngredient(Base):
+    __tablename__ = "recipe_ingredients"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipes.id"))
+    ingredient_id: Mapped[int] = mapped_column(ForeignKey("ingredients.id"))
+    amount: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
