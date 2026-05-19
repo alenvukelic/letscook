@@ -63,6 +63,7 @@ def serialize_recipe_list_item(
     recipe: Recipe,
     *,
     author_name: str,
+    author_username: str,
     category_name: str | None,
     main_image_url: str | None,
     user: User | None,
@@ -75,6 +76,7 @@ def serialize_recipe_list_item(
         author_complexity=recipe.author_complexity,
         category_name=category_name,
         author_name=author_name,
+        author_username=author_username,
         hidden=recipe.hidden,
         deleted=recipe.deleted,
         created_at=recipe.created_at,
@@ -223,8 +225,8 @@ async def list_recipes(
     current_user: User | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[RecipeListItem]:
-    statement: Select[tuple[Recipe, str, str | None, str | None]] = (
-        select(Recipe, User.display_name, Category.name, Media.storage_path)
+    statement: Select[tuple[Recipe, str, str, str | None, str | None]] = (
+        select(Recipe, User.display_name, User.email, Category.name, Media.storage_path)
         .join(User, User.id == Recipe.author_id)
         .outerjoin(Category, Category.id == Recipe.category_id)
         .outerjoin(Media, Media.id == Recipe.main_media_id)
@@ -267,11 +269,12 @@ async def list_recipes(
         serialize_recipe_list_item(
             recipe,
             author_name=author_name,
+            author_username=author_email.split("@", 1)[0],
             category_name=category_name,
             main_image_url=media_url(storage_path) if storage_path else None,
             user=current_user,
         )
-        for recipe, author_name, category_name, storage_path in rows.all()
+        for recipe, author_name, author_email, category_name, storage_path in rows.all()
     ]
 
 
@@ -328,7 +331,7 @@ async def recipe_detail(
     session: AsyncSession = Depends(get_session),
 ) -> RecipeDetail:
     row = await session.execute(
-        select(Recipe, User.display_name, Category.name, Media.storage_path)
+        select(Recipe, User.display_name, User.email, Category.name, Media.storage_path)
         .join(User, User.id == Recipe.author_id)
         .outerjoin(Category, Category.id == Recipe.category_id)
         .outerjoin(Media, Media.id == Recipe.main_media_id)
@@ -338,7 +341,7 @@ async def recipe_detail(
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
 
-    recipe, author_name, category_name, storage_path = result
+    recipe, author_name, author_email, category_name, storage_path = result
     if not recipe_visible_to_user(recipe, current_user):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
 
@@ -347,6 +350,7 @@ async def recipe_detail(
     list_item = serialize_recipe_list_item(
         recipe,
         author_name=author_name,
+        author_username=author_email.split("@", 1)[0],
         category_name=category_name,
         main_image_url=media_url(storage_path) if storage_path else None,
         user=current_user,

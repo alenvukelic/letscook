@@ -65,6 +65,7 @@ class RecipeListItem(BaseModel):
     author_complexity: int
     category_name: str | None
     author_name: str
+    author_username: str
     hidden: bool
     deleted: bool
     created_at: datetime
