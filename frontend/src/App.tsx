@@ -1,6 +1,9 @@
 import { useEffect, useState } from "preact/hooks";
 
-const apiBaseUrl = "http://localhost:8000/api";
+const apiBaseUrl =
+  window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000/api"
+    : "/api";
 const tokenStorageKey = "letscook.accessToken";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
