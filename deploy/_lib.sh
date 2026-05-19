@@ -325,6 +325,7 @@ sync_runtime_tree() {
     --exclude 'node_modules' \
     --exclude 'frontend/dist' \
     --exclude 'backend/.venv' \
+    --exclude 'var/media' \
     --exclude '__pycache__' \
     --exclude '*.pyc' \
     --exclude 'deploy/install.config' \

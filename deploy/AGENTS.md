@@ -40,6 +40,7 @@ Files prefixed with `_` are internal helpers. Do not tell users to start from th
 - Prefer idempotent checks so rerunning the installer repairs missing pieces instead of forcing a full reset.
 - Keep the repository checkout directory clearly separate from the live app directory in both defaults and prompts.
 - Backend virtualenv repair should prefer a one-time automatic rebuild when `pip` or editable install metadata is broken, instead of requiring a manual operator cleanup step.
+- Runtime media under `var/media` must be preserved across rsync-based updates and must not be deleted just because the deploy checkout does not contain those generated files.
 
 ## Safety rules
 

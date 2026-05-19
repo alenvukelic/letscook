@@ -132,6 +132,8 @@ This script:
 7. restarts the service
 8. reloads nginx if nginx is enabled
 
+Runtime media under `var/media` is preserved during sync-based updates so uploaded or imported files are not deleted by `update.sh`.
+
 ## Diagnose
 
 Read-only diagnostics:
