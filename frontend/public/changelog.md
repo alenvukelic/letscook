@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.2.8
+
+- Popravljeno je popunjavanje polja kod uređivanja recepta.
+- U editoru postupka više nema glavnog naslova; koriste se Naslov i Podnaslov.
+- Aplikacija sada javlja kada je dostupna novija verzija i nudi osvježavanje.
+
 ## 0.2.7
 
 - Prva slika iz teksta recepta sada se koristi kao glavna slika na listi i na receptu.

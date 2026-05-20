@@ -12,7 +12,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.7";
+const appVersion = "0.2.8";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -118,6 +118,11 @@ type RecipeFormState = {
   servings: string;
   author_complexity: string;
   ingredients: RecipeFormIngredient[];
+};
+
+type VersionInfo = {
+  version: string;
+  changes: string[];
 };
 
 type Route =
@@ -431,8 +436,8 @@ function RichTextEditor({
       onChange(nextValue);
     };
 
-    const headingButton = (level: 1 | 2 | 3) =>
-      createToolbarButton(`H${level}`, "toast-heading-button", () => {
+    const headingButton = (level: 2 | 3, label: string) =>
+      createToolbarButton(label, "toast-heading-button", () => {
         editorRef.current?.focus();
         editorRef.current?.exec("heading", { level });
         updateFromEditor();
@@ -453,9 +458,8 @@ function RichTextEditor({
       usageStatistics: false,
       toolbarItems: [
         [
-          { name: "heading1", el: headingButton(1) },
-          { name: "heading2", el: headingButton(2) },
-          { name: "heading3", el: headingButton(3) },
+          { name: "heading2", el: headingButton(2, "Naslov") },
+          { name: "heading3", el: headingButton(3, "Podnaslov") },
           "bold",
           "italic",
           { name: "underline", el: underlineButton },
@@ -617,6 +621,7 @@ export function App() {
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
   const [changelogMarkdown, setChangelogMarkdown] = useState("");
+  const [availableVersion, setAvailableVersion] = useState<VersionInfo | null>(null);
   const [language, setLanguage] = useState(localStorage.getItem(languageStorageKey) ?? "hr");
   const [query, setQuery] = useState("");
   const [recipeScope, setRecipeScope] = useState<RecipeScope>("all");
@@ -654,6 +659,27 @@ export function App() {
     const syncRoute = () => setRoute(parseRoute());
     window.addEventListener("hashchange", syncRoute);
     return () => window.removeEventListener("hashchange", syncRoute);
+  }, []);
+
+  useEffect(() => {
+    async function checkVersion() {
+      try {
+        const response = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+        const versionInfo = (await response.json()) as VersionInfo;
+        if (versionInfo.version && versionInfo.version !== appVersion) {
+          setAvailableVersion(versionInfo);
+        }
+      } catch {
+        // Version checks should never interrupt normal recipe browsing.
+      }
+    }
+
+    void checkVersion();
+    const interval = window.setInterval(() => void checkVersion(), 5 * 60 * 1000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -1365,6 +1391,25 @@ export function App() {
           </div>
         </header>
 
+        {availableVersion ? (
+          <div class="version-refresh-banner panel">
+            <div>
+              <strong>Izašla je novija verzija LetsCooka ({availableVersion.version}).</strong>
+              <span> Osvježi stranicu kako bi koristio najnovije izmjene.</span>
+              {availableVersion.changes.length ? (
+                <ul>
+                  {availableVersion.changes.map((change) => (
+                    <li key={change}>{change}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+            <button type="button" class="primary" onClick={() => window.location.reload()}>
+              Osvježi
+            </button>
+          </div>
+        ) : null}
+
         {appError ? <div class="alert error">{appError}</div> : null}
         {notice ? <div class="alert notice">{notice}</div> : null}
 
@@ -1723,10 +1768,10 @@ export function App() {
                     required
                     value={formState.title}
                     onInput={(event) =>
-                      setFormState({
-                        ...formState,
+                      setFormState((current) => ({
+                        ...current,
                         title: (event.currentTarget as HTMLInputElement).value,
-                      })
+                      }))
                     }
                   />
                 </label>
@@ -1736,10 +1781,10 @@ export function App() {
                     required
                     value={formState.category_id}
                     onChange={(event) =>
-                      setFormState({
-                        ...formState,
+                      setFormState((current) => ({
+                        ...current,
                         category_id: (event.currentTarget as HTMLSelectElement).value,
-                      })
+                      }))
                     }
                   >
                     <option value="">Odaberi kategoriju</option>
@@ -1759,10 +1804,10 @@ export function App() {
                     step="0.5"
                     value={formState.servings}
                     onInput={(event) =>
-                      setFormState({
-                        ...formState,
+                      setFormState((current) => ({
+                        ...current,
                         servings: (event.currentTarget as HTMLInputElement).value,
-                      })
+                      }))
                     }
                   />
                 </label>
@@ -1775,10 +1820,10 @@ export function App() {
                     max="1440"
                     value={formState.prep_time_minutes}
                     onInput={(event) =>
-                      setFormState({
-                        ...formState,
+                      setFormState((current) => ({
+                        ...current,
                         prep_time_minutes: (event.currentTarget as HTMLInputElement).value,
-                      })
+                      }))
                     }
                   />
                   <small>min</small>
@@ -1787,7 +1832,9 @@ export function App() {
                   <span>Kompleksnost</span>
                   <ComplexityPicker
                     value={formState.author_complexity}
-                    onChange={(author_complexity) => setFormState({ ...formState, author_complexity })}
+                    onChange={(author_complexity) =>
+                      setFormState((current) => ({ ...current, author_complexity }))
+                    }
                   />
                 </label>
               </div>
@@ -1822,7 +1869,9 @@ export function App() {
                   value={formState.content_markdown}
                   token={token}
                   media={route.name === "edit" && recipeDetail ? recipeDetail.media : []}
-                  onChange={(content_markdown) => setFormState({ ...formState, content_markdown })}
+                  onChange={(content_markdown) =>
+                    setFormState((current) => ({ ...current, content_markdown }))
+                  }
                 />
               </label>
             </form>
