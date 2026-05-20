@@ -1,5 +1,5 @@
 {
-  "version": "0.2.8",
+  "version": "0.3.0",
   "changes": [
     "Uređivanje recepta pouzdanije popunjava naslov i ostala polja.",
     "U editoru postupka koriste se samo Naslov i Podnaslov; glavni naslov recepta ostaje izvan postupka.",

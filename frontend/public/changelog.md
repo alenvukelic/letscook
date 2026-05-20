@@ -1,6 +1,6 @@
 # LetsCook Changelog
 
-## 0.2.8
+## 0.3.0
 
 - Popravljeno je popunjavanje polja kod uređivanja recepta.
 - U editoru postupka više nema glavnog naslova; koriste se Naslov i Podnaslov.
