@@ -251,6 +251,44 @@ def media_url(storage_path: str) -> str:
     return f"/media/{normalized.lstrip('/')}"
 
 
+def storage_path_from_media_url(url: str) -> str | None:
+    if not url.startswith("/media/"):
+        return None
+    return f"var/media/{url.removeprefix('/media/').lstrip('/')}"
+
+
+def extract_markdown_image_urls(markdown: str) -> list[str]:
+    urls = re.findall(r"!\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)", markdown)
+    urls.extend(re.findall(r"<img\s+[^>]*src=[\"']([^\"']+)[\"']", markdown, re.IGNORECASE))
+    return urls
+
+
+async def sync_recipe_markdown_media(
+    session: AsyncSession,
+    recipe: Recipe,
+    markdown: str,
+    current_user: User,
+) -> None:
+    storage_paths = [
+        storage_path
+        for url in extract_markdown_image_urls(markdown)
+        if (storage_path := storage_path_from_media_url(url)) is not None
+    ]
+    if not storage_paths:
+        recipe.main_media_id = None
+        return
+
+    media_rows = await session.scalars(select(Media).where(Media.storage_path.in_(storage_paths)))
+    media_by_path = {media.storage_path: media for media in media_rows}
+    first_media = media_by_path.get(storage_paths[0])
+    if first_media is not None:
+        recipe.main_media_id = first_media.id
+
+    for media in media_by_path.values():
+        if media.owner_id in {None, current_user.id} or media.recipe_id == recipe.id:
+            media.recipe_id = recipe.id
+
+
 def markdown_to_plain_steps(markdown: str) -> list[str]:
     lines = []
     for line in markdown.splitlines():
@@ -640,6 +678,7 @@ async def create_recipe(
     )
     session.add(recipe)
     await session.flush()
+    await sync_recipe_markdown_media(session, recipe, content_markdown, current_user)
     await replace_recipe_ingredients(session, recipe.id, payload)
     await log_action(
         session,
@@ -688,6 +727,7 @@ async def update_recipe(
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
     recipe.steps_html = ""
+    await sync_recipe_markdown_media(session, recipe, recipe.content_markdown, current_user)
     recipe.prep_time_minutes = payload.prep_time_minutes
     recipe.servings = payload.servings
     recipe.author_complexity = payload.author_complexity

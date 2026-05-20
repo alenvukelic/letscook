@@ -12,7 +12,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.6";
+const appVersion = "0.2.7";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -241,11 +241,16 @@ async function apiRequest<T>(
 }
 
 function formFromRecipe(recipe: RecipeDetail): RecipeFormState {
+  let contentMarkdown = recipe.content_markdown || recipe.steps_html;
+  const firstImage = recipe.media[0];
+  if (firstImage && !/!\[[^\]]*\]\([^)]+\)|<img\s+[^>]*src=/i.test(contentMarkdown)) {
+    contentMarkdown = `![${firstImage.original_filename}](${firstImage.url})\n\n${contentMarkdown}`.trim();
+  }
   return {
     title: recipe.title,
     category_id: recipe.category_id ? String(recipe.category_id) : "",
     language: recipe.language,
-    content_markdown: recipe.content_markdown || recipe.steps_html,
+    content_markdown: contentMarkdown,
     prep_time_minutes: String(recipe.prep_time_minutes),
     servings: String(recipe.servings),
     author_complexity: String(recipe.author_complexity),
@@ -386,10 +391,12 @@ function ComplexityPicker({ value, onChange }: { value: string; onChange: (value
 function RichTextEditor({
   value,
   token,
+  media,
   onChange,
 }: {
   value: string;
   token: string | null;
+  media: RecipeMedia[];
   onChange: (value: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -494,7 +501,31 @@ function RichTextEditor({
     }
   }
 
-  return <div ref={containerRef} class="toast-editor-host" />;
+  function insertExistingImage(mediaItem: RecipeMedia) {
+    const current = editorRef.current?.getMarkdown() ?? latestValueRef.current;
+    const imageMarkdown = `![${mediaItem.original_filename}](${mediaItem.url})`;
+    const nextValue = current.trim() ? `${imageMarkdown}\n\n${current}` : imageMarkdown;
+    editorRef.current?.setMarkdown(nextValue, false);
+    latestValueRef.current = nextValue;
+    onChange(nextValue);
+  }
+
+  return (
+    <div class="toast-editor-wrap">
+      {media.length ? (
+        <div class="editor-media-tray compact-media-tray">
+          <span>Dostupne slike</span>
+          {media.map((item) => (
+            <button key={item.id} type="button" onClick={() => insertExistingImage(item)}>
+              <img src={item.url} alt={item.original_filename} />
+              <span>Umetni na početak</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div ref={containerRef} class="toast-editor-host" />
+    </div>
+  );
 }
 
 function IngredientAutocomplete({
@@ -1677,12 +1708,17 @@ export function App() {
                 </button>
               </div>
 
-              <p class="eyebrow">Editor</p>
-              <h2>{route.name === "edit" ? "Uredi recept" : "Novi recept"}</h2>
+              <div class="editor-heading-row">
+                <div>
+                  <p class="eyebrow">Editor</p>
+                  <h2>{route.name === "edit" ? "Uredi recept" : "Novi recept"}</h2>
+                </div>
+                <span class="muted">Obavezno ispuni naslov, kategoriju, porcije, vrijeme i kompleksnost.</span>
+              </div>
 
               <div class="grid compact-editor-grid">
-                <label>
-                  Naslov
+                <label class="editor-field title-field">
+                  <span>Naslov</span>
                   <input
                     required
                     value={formState.title}
@@ -1694,8 +1730,8 @@ export function App() {
                     }
                   />
                 </label>
-                <label>
-                  Kategorija
+                <label class="editor-field compact-select-field">
+                  <span>Kategorija</span>
                   <select
                     required
                     value={formState.category_id}
@@ -1714,8 +1750,8 @@ export function App() {
                     ))}
                   </select>
                 </label>
-                <label>
-                  Porcije
+                <label class="editor-field compact-number-field">
+                  <span>Porcije</span>
                   <input
                     required
                     type="number"
@@ -1730,8 +1766,8 @@ export function App() {
                     }
                   />
                 </label>
-                <label>
-                  Vrijeme pripreme
+                <label class="editor-field compact-number-field">
+                  <span>Vrijeme</span>
                   <input
                     required
                     type="number"
@@ -1745,9 +1781,10 @@ export function App() {
                       })
                     }
                   />
+                  <small>min</small>
                 </label>
-                <label>
-                  Kompleksnost
+                <label class="editor-field complexity-field">
+                  <span>Kompleksnost</span>
                   <ComplexityPicker
                     value={formState.author_complexity}
                     onChange={(author_complexity) => setFormState({ ...formState, author_complexity })}
@@ -1784,6 +1821,7 @@ export function App() {
                 <RichTextEditor
                   value={formState.content_markdown}
                   token={token}
+                  media={route.name === "edit" && recipeDetail ? recipeDetail.media : []}
                   onChange={(content_markdown) => setFormState({ ...formState, content_markdown })}
                 />
               </label>

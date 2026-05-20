@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.2.7
+
+- Prva slika iz teksta recepta sada se koristi kao glavna slika na listi i na receptu.
+- Kod uređivanja recepta postojeće slike se mogu brzo umetnuti na početak postupka.
+- Gornja polja editora su zbijena i jasnije označena za brže popunjavanje.
+
 ## 0.2.6
 
 - Editor recepta sada koristi WYSIWYG Markdown i sprema postupak kao Markdown.
