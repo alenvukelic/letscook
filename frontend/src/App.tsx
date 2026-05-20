@@ -7,7 +7,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.1";
+const appVersion = "0.2.2";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -150,9 +150,9 @@ const languages = [
 ];
 
 const changelog = [
-  "Dodano je stvarno vrijeme pripreme i stvarni brojač sviđanja.",
-  "Sastojci su jednostavniji za unos, s odabirom jedinica mjere.",
-  "Dizajn je osvježen toplijom narančastom paletom.",
+  "Editor sastojaka sada stabilno traži dok upisuješ.",
+  "Postupak sada može prikazati slike iz galerije aplikacije.",
+  "Dizajn je osvježen veselijom narančastom bojom.",
 ];
 
 class ApiError extends Error {
@@ -320,6 +320,20 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
     onChange(editorRef.current?.innerHTML ?? "");
   }
 
+  function insertImage() {
+    const src = window.prompt("Unesi putanju slike iz aplikacije, npr. /media/seed/slika.jpg");
+    if (!src) {
+      return;
+    }
+    if (!src.startsWith("/media/")) {
+      window.alert("Slika mora biti lokalna datoteka iz aplikacije i početi s /media/.");
+      return;
+    }
+    editorRef.current?.focus();
+    document.execCommand("insertHTML", false, `<p><img src="${src}" alt="Slika recepta"></p>`);
+    onChange(editorRef.current?.innerHTML ?? "");
+  }
+
   return (
     <div class="wysiwyg-wrap">
       <div class="wysiwyg-toolbar" aria-label="Alati za uređivanje teksta">
@@ -327,6 +341,7 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
         <button type="button" onClick={() => runCommand("italic")}>Italic</button>
         <button type="button" onClick={() => runCommand("insertOrderedList")}>1. lista</button>
         <button type="button" onClick={() => runCommand("insertUnorderedList")}>Lista</button>
+        <button type="button" onClick={insertImage}>Slika</button>
       </div>
       <div
         ref={editorRef}
@@ -349,6 +364,7 @@ function IngredientAutocomplete({
   units: { code: string; label: string }[];
   onChange: (patch: Partial<RecipeFormIngredient>) => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   const query = ingredient.ingredient_name.trim().toLocaleLowerCase("hr-HR");
   const matches = query
     ? options
@@ -365,6 +381,11 @@ function IngredientAutocomplete({
         <input
           placeholder="Sastojak"
           value={ingredient.ingredient_name}
+          autoComplete="off"
+          role="combobox"
+          aria-expanded={isOpen && matches.length > 0}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
           onInput={(event) =>
             onChange({ ingredient_id: null, ingredient_name: (event.currentTarget as HTMLInputElement).value })
           }
@@ -387,13 +408,17 @@ function IngredientAutocomplete({
         />
       </div>
       {selectedName ? <span class="selected-ingredient">Odabrano: {selectedName}</span> : null}
-      {matches.length ? (
+      {isOpen && matches.length ? (
         <div class="ingredient-suggestions">
           {matches.map((option) => (
             <button
               key={option.id}
               type="button"
-              onClick={() => onChange({ ingredient_id: option.id, ingredient_name: option.name })}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange({ ingredient_id: option.id, ingredient_name: option.name });
+                setIsOpen(false);
+              }}
             >
               {option.name}
             </button>
@@ -402,7 +427,7 @@ function IngredientAutocomplete({
             <span class="new-ingredient-note">Spremanjem će se dodati novi sastojak ako ga ne odabereš.</span>
           ) : null}
         </div>
-      ) : query ? (
+      ) : query && !selectedName ? (
         <span class="new-ingredient-note">Novi sastojak: {ingredient.ingredient_name}</span>
       ) : null}
     </div>
@@ -1231,11 +1256,7 @@ export function App() {
 
                   <section class="story-block">
                     <h3>Priprema</h3>
-                    <ol class="steps-list">
-                      {recipeDetail.steps.map((step, index) => (
-                        <li key={`${recipeDetail.id}-${index}`}>{step}</li>
-                      ))}
-                    </ol>
+                    <div class="steps-html" dangerouslySetInnerHTML={{ __html: recipeDetail.steps_html }} />
                   </section>
                 </>
               ) : (
@@ -1435,7 +1456,7 @@ export function App() {
                 </div>
                 <div class="editor-ingredient-table">
                   {formState.ingredients.map((ingredient, index) => (
-                    <div key={`${index}-${ingredient.ingredient_id}`} class="ingredient-editor-row">
+                    <div key={index} class="ingredient-editor-row">
                       <IngredientAutocomplete
                         ingredient={ingredient}
                         options={options.ingredients}

@@ -52,7 +52,16 @@ INSERT INTO measurement_units (code, label, sort_order) VALUES
     ('pakiranje', 'pakiranje', 100),
     ('vrećica', 'vrećica', 110),
     ('list', 'list', 120),
-    ('režanj', 'režanj', 130)
+    ('režanj', 'režanj', 130),
+    ('oz', 'oz', 140),
+    ('lb', 'lb', 150),
+    ('fl_oz', 'fl oz', 160),
+    ('tsp', 'tsp', 170),
+    ('tbsp', 'tbsp', 180),
+    ('cup', 'cup', 190),
+    ('pt', 'pint', 200),
+    ('qt', 'quart', 210),
+    ('gal', 'gallon', 220)
 ON CONFLICT (code) DO UPDATE SET
     label = EXCLUDED.label,
     sort_order = EXCLUDED.sort_order;

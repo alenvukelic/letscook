@@ -79,7 +79,8 @@
 ## Recipe Workflow Expectations
 - Recipe creation should include title, category, tags, ingredients, amounts and units, rich-text steps, servings, and author complexity.
 - Preparation time is stored as `recipes.prep_time_minutes` and shown anywhere main recipe facts are displayed.
-- Ingredient units are selected from `measurement_units`; keep the seed list practical for Croatian recipe entry.
+- Ingredient units are selected from `measurement_units`; keep the seed list practical for Croatian and English recipe entry.
+- Recipe WYSIWYG content may display uploaded/local `/media/` images, but server sanitization must continue to reject external image embedding.
 - Ingredient entry should support both canonical ingredient selection and free text additions on the same row, for example selecting `eggs` and appending `domaca`, plus standalone text rows for variation-specific notes inside the ingredient section.
 - Main image is optional.
 - Ingredients should support canonical ingredient records plus new entry creation when needed.

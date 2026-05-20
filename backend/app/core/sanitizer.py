@@ -1,5 +1,16 @@
 import bleach
 
+
+def allow_image_attr(tag: str, name: str, value: str) -> bool:
+    if tag != "img":
+        return False
+    if name in {"alt", "title"}:
+        return True
+    if name == "src":
+        # Product rule: uploaded/local media only, no external image hotlinking.
+        return value.startswith("/media/")
+    return False
+
 ALLOWED_TAGS = [
     "a",
     "b",
@@ -8,13 +19,14 @@ ALLOWED_TAGS = [
     "em",
     "h2",
     "h3",
+    "img",
     "li",
     "ol",
     "p",
     "strong",
     "ul",
 ]
-ALLOWED_ATTRIBUTES = {"a": ["href", "title"]}
+ALLOWED_ATTRIBUTES = {"a": ["href", "title"], "img": allow_image_attr}
 ALLOWED_PROTOCOLS = ["http", "https", "mailto"]
 
 
