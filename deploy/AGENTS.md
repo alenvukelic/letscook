@@ -42,6 +42,7 @@ Files prefixed with `_` are internal helpers. Do not tell users to start from th
 - Backend virtualenv repair should prefer a one-time automatic rebuild when `pip` or editable install metadata is broken, instead of requiring a manual operator cleanup step.
 - Runtime media under `var/media` must be preserved across rsync-based updates and must not be deleted just because the deploy checkout does not contain those generated files.
 - SQL files under `db/migrations` must be idempotent because `update.sh` applies them on every deploy before restarting the service.
+- nginx-generated config must keep `index.html`, `version.json`, and `changelog.md` uncached so stale browser tabs can detect new frontend versions.
 
 ## Safety rules
 

@@ -1,8 +1,9 @@
 {
-  "version": "0.3.0",
+  "version": "0.3.1",
   "changes": [
     "Uređivanje recepta pouzdanije popunjava naslov i ostala polja.",
     "U editoru postupka koriste se samo Naslov i Podnaslov; glavni naslov recepta ostaje izvan postupka.",
-    "Aplikacija javlja kada je dostupna novija verzija i nudi osvježavanje."
+    "Aplikacija javlja kada je dostupna novija verzija i nudi osvježavanje.",
+    "Ispravljeno je cacheiranje podataka o verziji kako browser ne bi ostao na staroj verziji."
   ]
 }

@@ -539,6 +539,18 @@ server {
         try_files \$uri \$uri/ /index.html;
     }
 
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+
+    location = /version.json {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+
+    location = /changelog.md {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:$BACKEND_PORT;
         proxy_set_header Host \$host;
@@ -579,6 +591,18 @@ server {
 
     location / {
         try_files \$uri \$uri/ /index.html;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+
+    location = /version.json {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    }
+
+    location = /changelog.md {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
     }
 
     location /api/ {

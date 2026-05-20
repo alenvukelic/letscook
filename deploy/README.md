@@ -136,6 +136,8 @@ This script:
 
 Runtime media under `var/media` is preserved during sync-based updates so uploaded or imported files are not deleted by `update.sh`.
 
+When nginx is enabled, generated site configuration sends `Cache-Control: no-store, no-cache, must-revalidate` for `index.html`, `version.json`, and `changelog.md` so open browsers can detect new frontend releases instead of staying on stale app metadata.
+
 ## Diagnose
 
 Read-only diagnostics:

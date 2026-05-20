@@ -1,5 +1,10 @@
 # LetsCook Changelog
 
+## 0.3.1
+
+- Ispravljeno je cacheiranje podataka o verziji kako browser ne bi ostao na staroj verziji.
+- Dodano je pravilo da se ubuduće verzija predloži prije commita.
+
 ## 0.3.0
 
 - Popravljeno je popunjavanje polja kod uređivanja recepta.

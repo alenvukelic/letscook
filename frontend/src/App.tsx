@@ -12,7 +12,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.3.0";
+const appVersion = "0.3.1";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
