@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.2.6
+
+- Editor recepta sada koristi WYSIWYG Markdown i sprema postupak kao Markdown.
+- Slike se u editoru učitavaju kroz aplikaciju i automatski umeću u postupak.
+- Prikaz postupka recepta pretvara Markdown u siguran web prikaz.
+
 ## 0.2.5
 
 - Gumb za sviđanje recepta sada je na hrvatskom: Sviđa mi se.

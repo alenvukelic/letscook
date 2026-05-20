@@ -39,7 +39,7 @@ class RecipeWrite(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     category_id: int | None = None
     language: str = Field(default="hr", min_length=2, max_length=2)
-    steps_html: str = Field(min_length=1)
+    content_markdown: str = Field(min_length=1)
     prep_time_minutes: int = Field(gt=0, le=1440)
     servings: float = Field(gt=0)
     author_complexity: int = Field(ge=1, le=5)
@@ -94,6 +94,7 @@ class RecipeListItem(BaseModel):
 
 class RecipeDetail(RecipeListItem):
     category_id: int | None
+    content_markdown: str
     steps_html: str
     steps: list[str]
     author_id: int
@@ -109,3 +110,7 @@ class RecipeVisibilityUpdate(BaseModel):
 
 class RatingWrite(BaseModel):
     rating: int = Field(ge=1, le=5)
+
+
+class ImageUploadResponse(BaseModel):
+    url: str

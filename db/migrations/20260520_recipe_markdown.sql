@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE recipes
+    ADD COLUMN IF NOT EXISTS content_markdown TEXT NOT NULL DEFAULT '';
+
+COMMIT;

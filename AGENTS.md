@@ -42,7 +42,7 @@
 ## Product Constraints
 - Legal documents live in `legal/privacy.md`, `legal/terms.md`, `legal/image-rights.md`, and `legal/moderation.md`.
 - Do not allow external image embedding; images should be uploaded instead.
-- Sanitize recipe HTML on the server side.
+- Recipe body content is now stored as Markdown in `recipes.content_markdown`; keep server-side validation for local media references and sanitize rendered HTML before display.
 - Any future media upload flow should validate MIME type and size, normalize filenames, store files outside webroot, generate thumbnails or optimized variants, and run antivirus scanning.
 
 ## Domain Notes
@@ -81,7 +81,7 @@
 - Recipe creation should include title, category, tags, ingredients, amounts and units, rich-text steps, servings, and author complexity.
 - Preparation time is stored as `recipes.prep_time_minutes` and shown anywhere main recipe facts are displayed.
 - Ingredient units are selected from `measurement_units`; keep the seed list practical for Croatian and English recipe entry.
-- Recipe WYSIWYG content may display uploaded/local `/media/` images, but server sanitization must continue to reject external image embedding.
+- Recipe WYSIWYG content may display uploaded/local `/media/` images, but server validation must continue to reject external image embedding and rendered HTML must be sanitized before display.
 - User profile avatars are stored as local `/media/` image URLs; do not allow external avatar hotlinking.
 - Ingredient entry should support both canonical ingredient selection and free text additions on the same row, for example selecting `eggs` and appending `domaca`, plus standalone text rows for variation-specific notes inside the ingredient section.
 - Main image is optional.
@@ -104,7 +104,7 @@
 - `recipe_tags` should link recipes and tags many-to-many.
 - `ingredients` should represent canonical ingredients.
 - `ingredient_translations` should carry localized ingredient names by language.
-- `recipes` should include author, title, category, language, steps HTML, main media reference, servings, `hidden`, `deleted`, `hidden_id`, and `deleted_id`.
+- `recipes` should include author, title, category, language, Markdown body content, main media reference, servings, `hidden`, `deleted`, `hidden_id`, and `deleted_id`.
 - `recipe_translations` should carry localized recipe titles by language for seeded multilingual content.
 - `recipe_ingredients` should store ingredient quantities and units per recipe.
 - Ratings and complexity votes should be stored per user per recipe rather than only as aggregates.

@@ -115,6 +115,7 @@ class Recipe(Base):
     title: Mapped[str] = mapped_column(String, index=True)
     language: Mapped[str] = mapped_column(String(2), default="en")
     steps_html: Mapped[str] = mapped_column(Text)
+    content_markdown: Mapped[str] = mapped_column(Text, default="")
     main_media_id: Mapped[int | None] = mapped_column(ForeignKey("media.id"), nullable=True)
     prep_time_minutes: Mapped[int] = mapped_column(Integer, default=30)
     servings: Mapped[float] = mapped_column(Numeric(8, 2))

@@ -1,7 +1,9 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import pell from "pell";
-import "pell/dist/pell.min.css";
+import Editor from "@toast-ui/editor";
+import "@toast-ui/editor/dist/toastui-editor.css";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 
 const apiBaseUrl =
   window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
@@ -10,7 +12,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.5";
+const appVersion = "0.2.6";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -85,6 +87,7 @@ type RecipeIngredient = {
 
 type RecipeDetail = RecipeListItem & {
   category_id: number | null;
+  content_markdown: string;
   steps_html: string;
   steps: string[];
   author_id: number;
@@ -110,7 +113,7 @@ type RecipeFormState = {
   title: string;
   category_id: string;
   language: string;
-  steps_html: string;
+  content_markdown: string;
   prep_time_minutes: string;
   servings: string;
   author_complexity: string;
@@ -138,7 +141,7 @@ const emptyRecipeForm = (): RecipeFormState => ({
   title: "",
   category_id: "",
   language: "hr",
-  steps_html: "",
+  content_markdown: "",
   prep_time_minutes: "30",
   servings: "4",
   author_complexity: "3",
@@ -221,7 +224,9 @@ async function apiRequest<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) {
-    headers.set("Content-Type", "application/json");
+    if (!(init.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
+    }
   }
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -240,7 +245,7 @@ function formFromRecipe(recipe: RecipeDetail): RecipeFormState {
     title: recipe.title,
     category_id: recipe.category_id ? String(recipe.category_id) : "",
     language: recipe.language,
-    steps_html: recipe.steps_html,
+    content_markdown: recipe.content_markdown || recipe.steps_html,
     prep_time_minutes: String(recipe.prep_time_minutes),
     servings: String(recipe.servings),
     author_complexity: String(recipe.author_complexity),
@@ -318,6 +323,23 @@ function renderMarkdown(markdown: string): JSX.Element[] {
   return elements;
 }
 
+function renderRecipeMarkdown(markdown: string): string {
+  const rawHtml = marked.parse(markdown, { async: false }) as string;
+  const safeHtml = DOMPurify.sanitize(rawHtml, {
+    ALLOWED_TAGS: ["h1", "h2", "h3", "p", "strong", "em", "u", "ul", "ol", "li", "img", "br"],
+    ALLOWED_ATTR: ["src", "alt", "title"],
+  });
+  const template = document.createElement("template");
+  template.innerHTML = safeHtml;
+  template.content.querySelectorAll("img").forEach((image) => {
+    const src = image.getAttribute("src") ?? "";
+    if (!src.startsWith("/media/")) {
+      image.remove();
+    }
+  });
+  return template.innerHTML;
+}
+
 function RecipeMetaStrip({ recipe, className = "" }: { recipe: RecipeListItem; className?: string }) {
   return (
     <div class={`recipe-facts ${className}`.trim()} aria-label="Glavne informacije recepta">
@@ -361,30 +383,23 @@ function ComplexityPicker({ value, onChange }: { value: string; onChange: (value
   );
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"]/g, (char) => {
-    const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
-    return entities[char] ?? char;
-  });
-}
-
 function RichTextEditor({
   value,
-  media,
+  token,
   onChange,
 }: {
   value: string;
-  media: RecipeMedia[];
+  token: string | null;
   onChange: (value: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<{ content: HTMLElement } | null>(null);
+  const editorRef = useRef<Editor | null>(null);
   const latestValueRef = useRef(value);
 
   useEffect(() => {
     latestValueRef.current = value;
-    if (editorRef.current && editorRef.current.content.innerHTML !== value) {
-      editorRef.current.content.innerHTML = value;
+    if (editorRef.current && editorRef.current.getMarkdown() !== value) {
+      editorRef.current.setMarkdown(value, false);
     }
   }, [value]);
 
@@ -393,87 +408,93 @@ function RichTextEditor({
       return;
     }
 
-    editorRef.current = pell.init({
-      element: containerRef.current,
-      defaultParagraphSeparator: "p",
-      onChange: (html: string) => {
-        latestValueRef.current = html;
-        onChange(html);
-      },
-      actions: [
-        "bold",
-        "italic",
-        "underline",
-        "strikethrough",
-        "heading2",
-        "olist",
-        "ulist",
-        "quote",
-        "line",
-        "link",
-        {
-          name: "image",
-          icon: "Slika",
-          title: "Umetni lokalnu sliku",
-          result: () => insertImageByPrompt(),
-        },
-        "undo",
-        "redo",
-      ],
+    const createToolbarButton = (label: string, className: string, onClick: () => void) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.className = className;
+      button.setAttribute("aria-label", label);
+      button.addEventListener("click", onClick);
+      return button;
+    };
+
+    const updateFromEditor = () => {
+      const nextValue = editorRef.current?.getMarkdown() ?? latestValueRef.current;
+      latestValueRef.current = nextValue;
+      onChange(nextValue);
+    };
+
+    const headingButton = (level: 1 | 2 | 3) =>
+      createToolbarButton(`H${level}`, "toast-heading-button", () => {
+        editorRef.current?.focus();
+        editorRef.current?.exec("heading", { level });
+        updateFromEditor();
+      });
+    const underlineButton = createToolbarButton("U", "toast-underline-button", () => {
+      editorRef.current?.focus();
+      document.execCommand("underline");
+      updateFromEditor();
     });
-    editorRef.current.content.innerHTML = latestValueRef.current;
+
+    editorRef.current = new Editor({
+      el: containerRef.current,
+      initialValue: latestValueRef.current,
+      initialEditType: "wysiwyg",
+      hideModeSwitch: true,
+      previewStyle: "vertical",
+      height: "420px",
+      usageStatistics: false,
+      toolbarItems: [
+        [
+          { name: "heading1", el: headingButton(1) },
+          { name: "heading2", el: headingButton(2) },
+          { name: "heading3", el: headingButton(3) },
+          "bold",
+          "italic",
+          { name: "underline", el: underlineButton },
+        ],
+        ["ul", "ol", "image"],
+      ],
+      events: {
+        change: () => {
+          const nextValue = editorRef.current?.getMarkdown() ?? "";
+          latestValueRef.current = nextValue;
+          onChange(nextValue);
+        },
+      },
+      hooks: {
+        addImageBlobHook: (blob, callback) => {
+          void uploadEditorImage(blob, callback);
+        },
+      },
+    });
+
+    return () => {
+      editorRef.current?.destroy();
+      editorRef.current = null;
+    };
   }, []);
 
-  function insertImage() {
-    const src = window.prompt("Unesi putanju slike iz aplikacije, npr. /media/seed/slika.jpg");
-    if (!src) {
+  async function uploadEditorImage(blob: Blob | File, callback: (url: string, altText: string) => void) {
+    if (!token) {
+      window.alert("Za upload slike prijavi se u aplikaciju.");
       return;
     }
-    if (!src.startsWith("/media/")) {
-      window.alert("Slika mora biti lokalna datoteka iz aplikacije i početi s /media/.");
-      return;
+    const formData = new FormData();
+    formData.append("image", blob);
+    try {
+      const response = await apiRequest<{ url: string }>(
+        "/recipes/media",
+        { method: "POST", body: formData },
+        token,
+      );
+      callback(response.url, blob instanceof File ? blob.name : "Slika recepta");
+    } catch (error) {
+      window.alert((error as Error).message);
     }
-    insertImageByUrl(src, "Slika recepta");
   }
 
-  function insertImageByPrompt() {
-    insertImage();
-  }
-
-  function insertImageByUrl(src: string, alt: string) {
-    if (!src.startsWith("/media/")) {
-      window.alert("Slika mora biti lokalna datoteka iz aplikacije i početi s /media/.");
-      return;
-    }
-    editorRef.current?.content.focus();
-    pell.exec("insertHTML", `<p><img src="${src}" alt="${escapeHtml(alt)}"></p>`);
-    const nextValue = editorRef.current?.content.innerHTML ?? latestValueRef.current;
-    latestValueRef.current = nextValue;
-    onChange(nextValue);
-  }
-
-  return (
-    <div class="wysiwyg-wrap">
-      <div ref={containerRef} class="pell-host" />
-      {media.length ? (
-        <div class="editor-media-tray">
-          <span>Slike recepta</span>
-          {media.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => insertImageByUrl(item.url, item.original_filename)}
-            >
-              <img src={item.url} alt={item.original_filename} />
-              <span>Umetni</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div class="editor-media-empty">Za umetanje slike prvo koristi lokalnu `/media/` putanju.</div>
-      )}
-    </div>
-  );
+  return <div ref={containerRef} class="toast-editor-host" />;
 }
 
 function IngredientAutocomplete({
@@ -967,7 +988,7 @@ export function App() {
       title: formState.title,
       category_id: formState.category_id ? Number(formState.category_id) : null,
       language,
-      steps_html: formState.steps_html,
+      content_markdown: formState.content_markdown,
       prep_time_minutes: Number(formState.prep_time_minutes),
       servings: Number(formState.servings),
       author_complexity: Number(formState.author_complexity),
@@ -1522,7 +1543,14 @@ export function App() {
 
                   <section class="story-block">
                     <h3>Priprema</h3>
-                    <div class="steps-html" dangerouslySetInnerHTML={{ __html: recipeDetail.steps_html }} />
+                    <div
+                      class="steps-html"
+                      dangerouslySetInnerHTML={{
+                        __html: renderRecipeMarkdown(
+                          recipeDetail.content_markdown || recipeDetail.steps_html,
+                        ),
+                      }}
+                    />
                   </section>
                 </>
               ) : (
@@ -1754,9 +1782,9 @@ export function App() {
               <label>
                 Postupak
                 <RichTextEditor
-                  value={formState.steps_html}
-                  media={route.name === "edit" && recipeDetail ? recipeDetail.media : []}
-                  onChange={(steps_html) => setFormState({ ...formState, steps_html })}
+                  value={formState.content_markdown}
+                  token={token}
+                  onChange={(content_markdown) => setFormState({ ...formState, content_markdown })}
                 />
               </label>
             </form>

@@ -108,6 +108,7 @@ CREATE TABLE recipes (
     title TEXT NOT NULL,
     language CHAR(2) NOT NULL DEFAULT 'en',
     steps_html TEXT NOT NULL,
+    content_markdown TEXT NOT NULL DEFAULT '',
     main_media_id BIGINT,
     prep_time_minutes INTEGER NOT NULL DEFAULT 30 CHECK (prep_time_minutes > 0 AND prep_time_minutes <= 1440),
     servings NUMERIC(8,2) NOT NULL CHECK (servings > 0),

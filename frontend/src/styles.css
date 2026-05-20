@@ -699,7 +699,7 @@ h3 {
 }
 
 .steps-html img,
-.pell-content img {
+.toast-editor-host img {
   max-width: 100%;
   max-height: 420px;
   border-radius: 18px;
@@ -771,81 +771,44 @@ h3 {
   background: var(--accent);
 }
 
-.wysiwyg-wrap {
-  overflow: visible;
+.toast-editor-host {
   border: 1px solid #f0bd8c;
   border-radius: 18px;
   background: rgba(255, 252, 247, 0.94);
 }
 
-.pell-actionbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px;
-  border-bottom: 1px solid rgba(90, 67, 36, 0.12);
+.toast-editor-host .toastui-editor-defaultUI {
+  border: 0;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.toast-editor-host .toastui-editor-toolbar {
   background: rgba(255, 232, 209, 0.9);
 }
 
-.pell-button {
-  border: 1px solid rgba(238, 111, 47, 0.24);
-  border-radius: 999px;
-  padding: 7px 10px;
-  color: #4c3f2f;
-  background: #fffaf4;
-  font-weight: 700;
+.toast-heading-button,
+.toast-underline-button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  color: #222;
+  background: transparent;
+  font-weight: 900;
 }
 
-.pell-button-selected {
-  color: #fffaf4;
-  background: var(--accent);
+.toast-heading-button {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
 }
 
-.pell-content {
-  min-height: 190px;
-  padding: 14px 16px;
-  outline: none;
+.toast-underline-button {
+  text-decoration: underline;
 }
 
-.editor-media-tray {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  padding: 10px;
-  border-top: 1px solid rgba(90, 67, 36, 0.1);
-  background: rgba(255, 247, 236, 0.9);
-}
-
-.editor-media-tray > span,
-.editor-media-empty {
-  color: #8a6047;
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.editor-media-tray button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(238, 111, 47, 0.22);
-  border-radius: 14px;
-  padding: 6px 9px;
-  color: #673a20;
-  background: #fffaf4;
-  font-weight: 800;
-}
-
-.editor-media-tray img {
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  object-fit: cover;
-}
-
-.editor-media-empty {
-  padding: 10px 12px;
-  border-top: 1px solid rgba(90, 67, 36, 0.1);
+.toast-heading-button:hover,
+.toast-underline-button:hover {
+  background: rgba(238, 111, 47, 0.12);
 }
 
 .ingredient-editor-row {

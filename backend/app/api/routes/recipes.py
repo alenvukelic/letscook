@@ -3,13 +3,16 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from sqlalchemy import Select, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_optional_user
-from app.core.sanitizer import sanitize_recipe_html
+from app.core.config import settings
+from app.core.sanitizer import validate_recipe_markdown
 from app.db.session import get_session
 from app.models import (
     Category,
@@ -26,6 +29,7 @@ from app.models import (
 )
 from app.schemas.recipe import (
     CategoryOption,
+    ImageUploadResponse,
     IngredientOption,
     MeasurementUnitOption,
     RatingWrite,
@@ -40,6 +44,9 @@ from app.schemas.recipe import (
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/recipes")
+
+ALLOWED_IMAGE_MIME_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
 def user_can_edit_recipe(user: User, recipe: Recipe) -> bool:
@@ -244,6 +251,20 @@ def media_url(storage_path: str) -> str:
     return f"/media/{normalized.lstrip('/')}"
 
 
+def markdown_to_plain_steps(markdown: str) -> list[str]:
+    lines = []
+    for line in markdown.splitlines():
+        text = line.strip()
+        text = re.sub(r"^#{1,6}\s+", "", text)
+        text = re.sub(r"^(?:[-*+] |\d+\.\s+)", "", text)
+        text = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", text)
+        text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+        text = re.sub(r"[*_`~]", "", text).strip()
+        if text:
+            lines.append(text)
+    return lines
+
+
 async def load_recipe_media(session: AsyncSession, recipe_id: int) -> list[RecipeMediaView]:
     rows = await session.execute(
         select(Media.id, Media.original_filename, Media.storage_path, Media.width, Media.height)
@@ -353,6 +374,7 @@ async def list_recipes(
             .where(
                 or_(
                     Recipe.title.ilike(pattern),
+                    Recipe.content_markdown.ilike(pattern),
                     Recipe.steps_html.ilike(pattern),
                     RecipeIngredient.note.ilike(pattern),
                     Ingredient.canonical_name.ilike(pattern),
@@ -481,6 +503,58 @@ async def recipe_options(
     )
 
 
+@router.post("/media", response_model=ImageUploadResponse, status_code=status.HTTP_201_CREATED)
+async def upload_recipe_image(
+    request: Request,
+    image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ImageUploadResponse:
+    extension = ALLOWED_IMAGE_MIME_TYPES.get(image.content_type or "")
+    if extension is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only JPEG, PNG, and WebP images are supported",
+        )
+
+    content = await image.read()
+    if not content or len(content) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Image must be between 1 byte and 5 MB",
+        )
+
+    uploads_dir = Path(settings.media_root_path) / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    stored_filename = f"{uuid4().hex}{extension}"
+    storage_path = f"var/media/uploads/{stored_filename}"
+    (uploads_dir / stored_filename).write_bytes(content)
+
+    media = Media(
+        owner_id=current_user.id,
+        recipe_id=None,
+        original_filename=image.filename or stored_filename,
+        stored_filename=stored_filename,
+        mime_type=image.content_type or "application/octet-stream",
+        byte_size=len(content),
+        width=None,
+        height=None,
+        storage_path=storage_path,
+    )
+    session.add(media)
+    await session.flush()
+    await log_action(
+        session,
+        code="media.uploaded",
+        actor_user_id=current_user.id,
+        target_user_id=current_user.id,
+        request=request,
+        extra={"table": "media", "record_id": media.id, "filename": stored_filename},
+    )
+    await session.commit()
+    return ImageUploadResponse(url=media_url(storage_path))
+
+
 @router.get("/{recipe_id}", response_model=RecipeDetail)
 async def recipe_detail(
     recipe_id: int,
@@ -522,8 +596,9 @@ async def recipe_detail(
     return RecipeDetail(
         **list_item.model_dump(),
         category_id=recipe.category_id,
+        content_markdown=recipe.content_markdown or recipe.steps_html,
         steps_html=recipe.steps_html,
-        steps=extract_steps(recipe.steps_html),
+        steps=markdown_to_plain_steps(recipe.content_markdown) or extract_steps(recipe.steps_html),
         author_id=recipe.author_id,
         ingredients=ingredients,
         media=media,
@@ -542,12 +617,18 @@ async def create_recipe(
         session, [row.ingredient_id for row in payload.ingredients if row.ingredient_id]
     )
 
+    try:
+        content_markdown = validate_recipe_markdown(payload.content_markdown)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
     recipe = Recipe(
         author_id=current_user.id,
         category_id=payload.category_id,
         title=payload.title.strip(),
         language=payload.language.lower(),
-        steps_html=sanitize_recipe_html(payload.steps_html),
+        steps_html="",
+        content_markdown=content_markdown,
         prep_time_minutes=payload.prep_time_minutes,
         servings=payload.servings,
         author_complexity=payload.author_complexity,
@@ -602,7 +683,11 @@ async def update_recipe(
     recipe.title = payload.title.strip()
     recipe.category_id = payload.category_id
     recipe.language = payload.language.lower()
-    recipe.steps_html = sanitize_recipe_html(payload.steps_html)
+    try:
+        recipe.content_markdown = validate_recipe_markdown(payload.content_markdown)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+    recipe.steps_html = ""
     recipe.prep_time_minutes = payload.prep_time_minutes
     recipe.servings = payload.servings
     recipe.author_complexity = payload.author_complexity
