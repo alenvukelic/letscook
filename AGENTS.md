@@ -37,7 +37,7 @@
 ## Git Remote
 - GitHub repository: `https://github.com/alenvukelic/letscook`
 - Primary branch is `main`.
-- Local work should stay local until the user explicitly authorizes a GitHub push with `commit` or `komit`.
+- Until product version `1.0.0`, completed local work should be pushed to GitHub and deployed to `ubuntu-dev` as described in Workflow Rules.
 
 ## Product Constraints
 - Legal documents live in `legal/privacy.md`, `legal/terms.md`, `legal/image-rights.md`, and `legal/moderation.md`.
@@ -50,6 +50,7 @@
 - User roles are `user`, `moderator`, `administrator`, and `superadmin`.
 - The initial `superadmin` account is `users.id = 1` and should be protected from deletion, banning, or demotion.
 - Recipe creation is expected to support structured ingredients, servings, tags, category, rich-text steps, optional main image, and mixed ingredient rows where a canonical ingredient can also carry free text or a row can be plain explanatory text.
+- Recipe creation/editing requires category, servings, preparation time, and author complexity.
 - The original notes expect both author complexity and community complexity to be stored and displayed.
 - Search is expected to cover title, ingredients, tags, and steps, with ingredient-based matching as an important use case.
 - Recipes may have parent/child relationships to represent variations or clones.
@@ -77,6 +78,8 @@
 
 ## Recipe Workflow Expectations
 - Recipe creation should include title, category, tags, ingredients, amounts and units, rich-text steps, servings, and author complexity.
+- Preparation time is stored as `recipes.prep_time_minutes` and shown anywhere main recipe facts are displayed.
+- Ingredient units are selected from `measurement_units`; keep the seed list practical for Croatian recipe entry.
 - Ingredient entry should support both canonical ingredient selection and free text additions on the same row, for example selecting `eggs` and appending `domaca`, plus standalone text rows for variation-specific notes inside the ingredient section.
 - Main image is optional.
 - Ingredients should support canonical ingredient records plus new entry creation when needed.

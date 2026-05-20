@@ -1,6 +1,6 @@
 :root {
   color: #1f1a14;
-  background: #f5ead8;
+  background: #fff1df;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-synthesis: none;
   line-height: 1.5;
@@ -36,7 +36,7 @@ input,
 select,
 textarea {
   width: 100%;
-  border: 1px solid #d7c3a6;
+  border: 1px solid #e2bb8f;
   border-radius: 14px;
   padding: 10px 12px;
   color: #1f1a14;
@@ -59,8 +59,8 @@ label {
   grid-template-columns: 168px minmax(0, 1fr);
   min-height: 100vh;
   background:
-    radial-gradient(circle at top right, rgba(232, 161, 83, 0.24), transparent 24rem),
-    linear-gradient(150deg, #fff7eb 0%, #ead3b5 100%);
+    radial-gradient(circle at top right, rgba(255, 156, 49, 0.28), transparent 24rem),
+    linear-gradient(150deg, #fff8ed 0%, #f1c995 100%);
 }
 
 .left-rail {
@@ -151,7 +151,7 @@ label {
   height: 42px;
   border-radius: 50%;
   color: #fff9f2;
-  background: linear-gradient(180deg, #356d4d 0%, #244d37 100%);
+  background: linear-gradient(180deg, #e87422 0%, #a94613 100%);
 }
 
 .brand-text,
@@ -185,15 +185,15 @@ label {
 }
 
 .nav-link:hover {
-  background: rgba(45, 107, 75, 0.08);
+  background: rgba(218, 103, 28, 0.12);
 }
 
 .nav-icon {
   width: 36px;
   height: 36px;
   border-radius: 14px;
-  color: #2b6546;
-  background: rgba(47, 107, 73, 0.12);
+  color: #b24e16;
+  background: rgba(218, 103, 28, 0.14);
   font-weight: 800;
 }
 
@@ -209,7 +209,7 @@ label {
   gap: 20px;
   margin-bottom: 18px;
   padding: 14px 0 18px;
-  background: linear-gradient(180deg, rgba(252, 245, 235, 0.96), rgba(252, 245, 235, 0.82));
+  background: linear-gradient(180deg, rgba(255, 247, 235, 0.96), rgba(255, 247, 235, 0.82));
   backdrop-filter: blur(14px);
   transition: padding 180ms ease, box-shadow 180ms ease;
 }
@@ -272,7 +272,7 @@ h3 {
 .primary {
   border: 0;
   color: #fffaf4;
-  background: #276242;
+  background: #d8641e;
 }
 
 .icon-toggle {
@@ -460,11 +460,17 @@ h3 {
 }
 
 .fact-complexity span {
-  color: #d0c8ba;
+  color: #bdb5aa;
+  filter: grayscale(1);
+  opacity: 0.55;
 }
 
 .fact-complexity span.filled {
-  color: #2d6b4b;
+  opacity: 1;
+}
+
+.liked-fact {
+  color: #cf251b;
 }
 
 .fact-rating span {
@@ -474,6 +480,53 @@ h3 {
 
 .fact-rating span.filled {
   color: #f0ad18;
+}
+
+.rating-count {
+  color: #7d674e;
+  font-size: 0.8rem;
+}
+
+.recipe-actions-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.like-button,
+.rating-picker button {
+  border: 1px solid rgba(143, 75, 20, 0.18);
+  border-radius: 999px;
+  color: #673a20;
+  background: #fff7ed;
+  font-weight: 800;
+}
+
+.like-button {
+  padding: 10px 14px;
+}
+
+.like-button.active {
+  color: #fff9f1;
+  background: #d6422b;
+}
+
+.rating-picker {
+  display: flex;
+  gap: 4px;
+}
+
+.rating-picker button {
+  width: 38px;
+  height: 38px;
+  color: #c9b9a6;
+}
+
+.rating-picker button.selected {
+  color: #fff9f0;
+  background: #e89b16;
 }
 
 .detail-facts {
@@ -579,7 +632,7 @@ h3 {
 
 .compact-editor-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 1.4fr) minmax(190px, 0.8fr) 120px minmax(180px, 0.7fr);
+  grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 0.8fr) 110px 150px minmax(170px, 0.7fr);
   gap: 12px;
   align-items: end;
 }
@@ -588,7 +641,7 @@ h3 {
   display: flex;
   gap: 6px;
   padding: 7px;
-  border: 1px solid #d7c3a6;
+  border: 1px solid #e2bb8f;
   border-radius: 14px;
   background: rgba(255, 252, 247, 0.94);
 }
@@ -598,19 +651,21 @@ h3 {
   height: 34px;
   border: 0;
   border-radius: 10px;
-  color: #cfc5b5;
+  color: #beb5aa;
+  filter: grayscale(1);
   background: transparent;
   font-size: 1.1rem;
 }
 
 .complexity-picker button.selected {
   color: #fff7ee;
-  background: #2d6b4b;
+  background: #d8641e;
+  filter: grayscale(1);
 }
 
 .wysiwyg-wrap {
   overflow: hidden;
-  border: 1px solid #d7c3a6;
+  border: 1px solid #e2bb8f;
   border-radius: 18px;
   background: rgba(255, 252, 247, 0.94);
 }
@@ -641,9 +696,15 @@ h3 {
 
 .ingredient-editor-row {
   display: grid;
-  grid-template-columns: minmax(260px, 1.4fr) 110px 110px minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: start;
+}
+
+.ingredient-line {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) 86px 110px minmax(160px, 1fr);
+  gap: 8px;
 }
 
 .ingredient-autocomplete {
@@ -679,7 +740,7 @@ h3 {
 }
 
 .ingredient-suggestions button:hover {
-  background: rgba(45, 107, 75, 0.1);
+  background: rgba(218, 103, 28, 0.12);
 }
 
 .selected-ingredient,
@@ -800,6 +861,7 @@ h3 {
   .grid.two-columns,
   .compact-editor-grid,
   .ingredient-editor-row,
+  .ingredient-line,
   .recipe-card-button.list {
     grid-template-columns: 1fr;
   }

@@ -63,9 +63,10 @@ It can:
 9. install backend dependencies into `backend/.venv`
 10. install frontend packages and build the frontend
 11. validate database connectivity and optionally apply `db/schema.sql`
-12. install or repair the systemd service
-13. install or repair nginx
-14. optionally configure self-signed OpenSSL certificates or Let's Encrypt
+12. apply idempotent SQL migrations from `db/migrations`
+13. install or repair the systemd service
+14. install or repair nginx
+15. optionally configure self-signed OpenSSL certificates or Let's Encrypt
 
 Every major step first checks whether it is already configured so the script can be rerun safely for repair work.
 
@@ -128,9 +129,10 @@ This script:
 3. repairs `.env` if needed
 4. reinstalls backend and frontend dependencies if required
 5. automatically rebuilds `backend/.venv` once if an existing virtualenv is broken during `pip` upgrade or editable install
-6. rebuilds the frontend
-7. restarts the service
-8. reloads nginx if nginx is enabled
+6. applies idempotent SQL migrations from `db/migrations`
+7. rebuilds the frontend
+8. restarts the service
+9. reloads nginx if nginx is enabled
 
 Runtime media under `var/media` is preserved during sync-based updates so uploaded or imported files are not deleted by `update.sh`.
 

@@ -41,6 +41,7 @@ Files prefixed with `_` are internal helpers. Do not tell users to start from th
 - Keep the repository checkout directory clearly separate from the live app directory in both defaults and prompts.
 - Backend virtualenv repair should prefer a one-time automatic rebuild when `pip` or editable install metadata is broken, instead of requiring a manual operator cleanup step.
 - Runtime media under `var/media` must be preserved across rsync-based updates and must not be deleted just because the deploy checkout does not contain those generated files.
+- SQL files under `db/migrations` must be idempotent because `update.sh` applies them on every deploy before restarting the service.
 
 ## Safety rules
 

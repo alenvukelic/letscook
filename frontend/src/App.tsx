@@ -7,7 +7,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.0";
+const appVersion = "0.2.1";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -45,7 +45,13 @@ type RecipeListItem = {
   title: string;
   language: string;
   servings: number;
+  prep_time_minutes: number;
   author_complexity: number;
+  likes_count: number;
+  rating_average: number | null;
+  ratings_count: number;
+  user_liked: boolean;
+  user_rating: number | null;
   category_name: string | null;
   author_name: string;
   author_username: string;
@@ -82,6 +88,7 @@ type RecipeDetail = RecipeListItem & {
 type RecipeFormOptions = {
   categories: CategoryOption[];
   ingredients: IngredientOption[];
+  units: { code: string; label: string }[];
 };
 
 type RecipeFormIngredient = {
@@ -97,6 +104,7 @@ type RecipeFormState = {
   category_id: string;
   language: string;
   steps_html: string;
+  prep_time_minutes: string;
   servings: string;
   author_complexity: string;
   ingredients: RecipeFormIngredient[];
@@ -122,6 +130,7 @@ const emptyRecipeForm = (): RecipeFormState => ({
   category_id: "",
   language: "hr",
   steps_html: "",
+  prep_time_minutes: "30",
   servings: "4",
   author_complexity: "3",
   ingredients: [emptyIngredientRow()],
@@ -141,9 +150,9 @@ const languages = [
 ];
 
 const changelog = [
-  "Uređen je pregled recepata s jasnijim karticama i listom.",
-  "Dodani su bolji korisnički izbornik, profil i duže trajanje prijave.",
-  "Editor recepta je kompaktniji i više ne traži unos HTML-a.",
+  "Dodano je stvarno vrijeme pripreme i stvarni brojač sviđanja.",
+  "Sastojci su jednostavniji za unos, s odabirom jedinica mjere.",
+  "Dizajn je osvježen toplijom narančastom paletom.",
 ];
 
 class ApiError extends Error {
@@ -223,6 +232,7 @@ function formFromRecipe(recipe: RecipeDetail): RecipeFormState {
     category_id: recipe.category_id ? String(recipe.category_id) : "",
     language: recipe.language,
     steps_html: recipe.steps_html,
+    prep_time_minutes: String(recipe.prep_time_minutes),
     servings: String(recipe.servings),
     author_complexity: String(recipe.author_complexity),
     ingredients: recipe.ingredients.length
@@ -248,18 +258,6 @@ function usernameFromUser(user: User | null): string {
   return user.email.split("@", 1)[0];
 }
 
-function getPrepMinutes(recipe: { id: number }): number {
-  return 5 + (recipe.id % 4) * 5;
-}
-
-function getLikesCount(recipe: { id: number }): number {
-  return recipe.id % 17;
-}
-
-function getRating(recipe: { id: number }): number {
-  return 3 + (recipe.id % 3);
-}
-
 function formatServing(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toLocaleString("hr-HR");
 }
@@ -268,17 +266,18 @@ function RecipeMetaStrip({ recipe, className = "" }: { recipe: RecipeListItem; c
   return (
     <div class={`recipe-facts ${className}`.trim()} aria-label="Glavne informacije recepta">
       <span title="Za koliko osoba">🍴 {formatServing(recipe.servings)} osoba</span>
-      <span title="Vrijeme pripreme">◷ {getPrepMinutes(recipe)} minuta</span>
-      <span title="Sviđanja">♥ {getLikesCount(recipe)}</span>
+      <span title="Vrijeme pripreme">◷ {recipe.prep_time_minutes} minuta</span>
+      <span title="Sviđanja" class={recipe.user_liked ? "liked-fact" : ""}>♥ {recipe.likes_count}</span>
       <span title="Kompleksnost" class="fact-complexity">
         {Array.from({ length: 5 }, (_, index) => (
-          <span key={index} class={index < recipe.author_complexity ? "filled" : ""}>●</span>
+          <span key={index} class={index < recipe.author_complexity ? "filled" : ""}>🥄</span>
         ))}
       </span>
       <span title="Ocjena" class="fact-rating">
         {Array.from({ length: 5 }, (_, index) => (
-          <span key={index} class={index < getRating(recipe) ? "filled" : ""}>★</span>
+          <span key={index} class={index < Math.round(recipe.rating_average ?? 0) ? "filled" : ""}>★</span>
         ))}
+        <span class="rating-count">({recipe.ratings_count})</span>
       </span>
     </div>
   );
@@ -298,7 +297,7 @@ function ComplexityPicker({ value, onChange }: { value: string; onChange: (value
             onClick={() => onChange(String(nextValue))}
             aria-label={`Kompleksnost ${nextValue}`}
           >
-            ●
+            🥄
           </button>
         );
       })}
@@ -342,10 +341,12 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
 function IngredientAutocomplete({
   ingredient,
   options,
+  units,
   onChange,
 }: {
   ingredient: RecipeFormIngredient;
   options: IngredientOption[];
+  units: { code: string; label: string }[];
   onChange: (patch: Partial<RecipeFormIngredient>) => void;
 }) {
   const query = ingredient.ingredient_name.trim().toLocaleLowerCase("hr-HR");
@@ -360,13 +361,31 @@ function IngredientAutocomplete({
 
   return (
     <div class="ingredient-autocomplete">
-      <input
-        placeholder="Upiši sastojak"
-        value={ingredient.ingredient_name}
-        onInput={(event) =>
-          onChange({ ingredient_id: null, ingredient_name: (event.currentTarget as HTMLInputElement).value })
-        }
-      />
+      <div class="ingredient-line">
+        <input
+          placeholder="Sastojak"
+          value={ingredient.ingredient_name}
+          onInput={(event) =>
+            onChange({ ingredient_id: null, ingredient_name: (event.currentTarget as HTMLInputElement).value })
+          }
+        />
+        <input
+          placeholder="Kol."
+          value={ingredient.amount}
+          onInput={(event) => onChange({ amount: (event.currentTarget as HTMLInputElement).value })}
+        />
+        <select value={ingredient.unit} onChange={(event) => onChange({ unit: (event.currentTarget as HTMLSelectElement).value })}>
+          <option value="">Mjera</option>
+          {units.map((unit) => (
+            <option key={unit.code} value={unit.code}>{unit.label}</option>
+          ))}
+        </select>
+        <input
+          placeholder="Napomena"
+          value={ingredient.note}
+          onInput={(event) => onChange({ note: (event.currentTarget as HTMLInputElement).value })}
+        />
+      </div>
       {selectedName ? <span class="selected-ingredient">Odabrano: {selectedName}</span> : null}
       {matches.length ? (
         <div class="ingredient-suggestions">
@@ -394,12 +413,13 @@ export function App() {
   const [route, setRoute] = useState<Route>(parseRoute());
   const [token, setToken] = useState<string | null>(getStoredToken());
   const [user, setUser] = useState<User | null>(null);
-  const [options, setOptions] = useState<RecipeFormOptions>({ categories: [], ingredients: [] });
+  const [options, setOptions] = useState<RecipeFormOptions>({ categories: [], ingredients: [], units: [] });
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
   const [language, setLanguage] = useState(localStorage.getItem(languageStorageKey) ?? "hr");
   const [query, setQuery] = useState("");
   const [mineOnly, setMineOnly] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [includeHidden, setIncludeHidden] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
   const [profileOpen, setProfileOpen] = useState(false);
@@ -479,7 +499,7 @@ export function App() {
 
   useEffect(() => {
     void loadRecipes();
-  }, [token, query, mineOnly, includeHidden, language]);
+  }, [token, query, mineOnly, favoritesOnly, includeHidden, language]);
 
   useEffect(() => {
     if (route.name === "detail" || route.name === "edit") {
@@ -517,6 +537,9 @@ export function App() {
     if (mineOnly) {
       params.set("mine", "true");
     }
+    if (favoritesOnly) {
+      params.set("favorites", "true");
+    }
     if (includeHidden) {
       params.set("include_hidden", "true");
     }
@@ -527,6 +550,7 @@ export function App() {
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setMineOnly(false);
+        setFavoritesOnly(false);
         setIncludeHidden(false);
         requireAuth("Sesija je istekla. Prijavi se ponovno.");
       } else {
@@ -595,6 +619,7 @@ export function App() {
     setUser(null);
     setProfileOpen(false);
     setMineOnly(false);
+    setFavoritesOnly(false);
     setIncludeHidden(false);
     setNotice("Odjavljen si.");
     navigate("/recipes");
@@ -607,6 +632,7 @@ export function App() {
         return;
       }
       setMineOnly(true);
+      setFavoritesOnly(false);
       navigate("/recipes");
       return;
     }
@@ -614,7 +640,8 @@ export function App() {
       if (!requireAuth("Za omiljene recepte prijavi se u aplikaciju.")) {
         return;
       }
-      setNotice("Omiljeni recepti dolaze u idućem koraku.");
+      setFavoritesOnly(true);
+      setMineOnly(false);
       navigate("/recipes");
       return;
     }
@@ -744,6 +771,7 @@ export function App() {
       category_id: formState.category_id ? Number(formState.category_id) : null,
       language,
       steps_html: formState.steps_html,
+      prep_time_minutes: Number(formState.prep_time_minutes),
       servings: Number(formState.servings),
       author_complexity: Number(formState.author_complexity),
       ingredients: formState.ingredients
@@ -795,6 +823,48 @@ export function App() {
       await loadRecipes();
     } catch (error) {
       setAppError((error as Error).message);
+    }
+  }
+
+  async function toggleRecipeLike() {
+    if (!recipeDetail || !requireAuth("Za označavanje sviđanja prijavi se u aplikaciju.")) {
+      return;
+    }
+    try {
+      const updated = await apiRequest<RecipeDetail>(
+        `/recipes/${recipeDetail.id}/like`,
+        { method: recipeDetail.user_liked ? "DELETE" : "PUT" },
+        token,
+      );
+      setRecipeDetail(updated);
+      await loadRecipes();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno.");
+      } else {
+        setAppError((error as Error).message);
+      }
+    }
+  }
+
+  async function setRecipeRating(rating: number) {
+    if (!recipeDetail || !requireAuth("Za ocjenjivanje recepta prijavi se u aplikaciju.")) {
+      return;
+    }
+    try {
+      const updated = await apiRequest<RecipeDetail>(
+        `/recipes/${recipeDetail.id}/rating`,
+        { method: "PUT", body: JSON.stringify({ rating }) },
+        token,
+      );
+      setRecipeDetail(updated);
+      await loadRecipes();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno.");
+      } else {
+        setAppError((error as Error).message);
+      }
     }
   }
 
@@ -1024,9 +1094,30 @@ export function App() {
                     type="checkbox"
                     checked={mineOnly}
                     disabled={!user}
-                    onChange={(event) => setMineOnly((event.currentTarget as HTMLInputElement).checked)}
+                    onChange={(event) => {
+                      const checked = (event.currentTarget as HTMLInputElement).checked;
+                      setMineOnly(checked);
+                      if (checked) {
+                        setFavoritesOnly(false);
+                      }
+                    }}
                   />
                   <span>Samo moji recepti</span>
+                </label>
+                <label class="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={favoritesOnly}
+                    disabled={!user}
+                    onChange={(event) => {
+                      const checked = (event.currentTarget as HTMLInputElement).checked;
+                      setFavoritesOnly(checked);
+                      if (checked) {
+                        setMineOnly(false);
+                      }
+                    }}
+                  />
+                  <span>Omiljeni recepti</span>
                 </label>
                 <label class="inline-check">
                   <input
@@ -1104,6 +1195,30 @@ export function App() {
                       <span>{recipeDetail.category_name ?? "Bez kategorije"}</span>
                     </div>
                     <RecipeMetaStrip recipe={recipeDetail} className="detail-facts" />
+                    <div class="recipe-actions-strip">
+                      <button
+                        type="button"
+                        class={`like-button ${recipeDetail.user_liked ? "active" : ""}`}
+                        onClick={toggleRecipeLike}
+                      >
+                        ♥ {recipeDetail.user_liked ? "Sviđa mi se" : "Like"}
+                      </button>
+                      <div class="rating-picker" aria-label="Ocijeni recept">
+                        {Array.from({ length: 5 }, (_, index) => {
+                          const rating = index + 1;
+                          return (
+                            <button
+                              key={rating}
+                              type="button"
+                              class={rating <= (recipeDetail.user_rating ?? 0) ? "selected" : ""}
+                              onClick={() => setRecipeRating(rating)}
+                            >
+                              ★
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
 
                   {recipeDetail.media.length ? (
@@ -1240,6 +1355,7 @@ export function App() {
                 <label>
                   Naslov
                   <input
+                    required
                     value={formState.title}
                     onInput={(event) =>
                       setFormState({
@@ -1252,6 +1368,7 @@ export function App() {
                 <label>
                   Kategorija
                   <select
+                    required
                     value={formState.category_id}
                     onChange={(event) =>
                       setFormState({
@@ -1260,7 +1377,7 @@ export function App() {
                       })
                     }
                   >
-                    <option value="">Bez kategorije</option>
+                    <option value="">Odaberi kategoriju</option>
                     {options.categories.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.name}
@@ -1271,6 +1388,7 @@ export function App() {
                 <label>
                   Porcije
                   <input
+                    required
                     type="number"
                     min="1"
                     step="0.5"
@@ -1284,6 +1402,22 @@ export function App() {
                   />
                 </label>
                 <label>
+                  Vrijeme pripreme
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="1440"
+                    value={formState.prep_time_minutes}
+                    onInput={(event) =>
+                      setFormState({
+                        ...formState,
+                        prep_time_minutes: (event.currentTarget as HTMLInputElement).value,
+                      })
+                    }
+                  />
+                </label>
+                <label>
                   Kompleksnost
                   <ComplexityPicker
                     value={formState.author_complexity}
@@ -1291,14 +1425,6 @@ export function App() {
                   />
                 </label>
               </div>
-
-              <label>
-                Postupak
-                <RichTextEditor
-                  value={formState.steps_html}
-                  onChange={(steps_html) => setFormState({ ...formState, steps_html })}
-                />
-              </label>
 
               <div class="editor-ingredients panel">
                 <div class="section-head">
@@ -1313,34 +1439,8 @@ export function App() {
                       <IngredientAutocomplete
                         ingredient={ingredient}
                         options={options.ingredients}
+                        units={options.units}
                         onChange={(patch) => updateIngredientRow(index, patch)}
-                      />
-                      <input
-                        placeholder="Količina"
-                        value={ingredient.amount}
-                        onInput={(event) =>
-                          updateIngredientRow(index, {
-                            amount: (event.currentTarget as HTMLInputElement).value,
-                          })
-                        }
-                      />
-                      <input
-                        placeholder="Jedinica"
-                        value={ingredient.unit}
-                        onInput={(event) =>
-                          updateIngredientRow(index, {
-                            unit: (event.currentTarget as HTMLInputElement).value,
-                          })
-                        }
-                      />
-                      <input
-                        placeholder="Napomena"
-                        value={ingredient.note}
-                        onInput={(event) =>
-                          updateIngredientRow(index, {
-                            note: (event.currentTarget as HTMLInputElement).value,
-                          })
-                        }
                       />
                       <button type="button" class="ghost danger-link" onClick={() => removeIngredientRow(index)}>
                         Makni
@@ -1349,6 +1449,14 @@ export function App() {
                   ))}
                 </div>
               </div>
+
+              <label>
+                Postupak
+                <RichTextEditor
+                  value={formState.steps_html}
+                  onChange={(steps_html) => setFormState({ ...formState, steps_html })}
+                />
+              </label>
             </form>
           </section>
         ) : null}

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import INET
@@ -95,6 +96,15 @@ class IngredientTranslation(Base):
     name: Mapped[str] = mapped_column(String)
 
 
+class MeasurementUnit(Base):
+    __tablename__ = "measurement_units"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    code: Mapped[str] = mapped_column(String, unique=True, index=True)
+    label: Mapped[str] = mapped_column(String)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class Recipe(Base):
     __tablename__ = "recipes"
 
@@ -105,6 +115,7 @@ class Recipe(Base):
     language: Mapped[str] = mapped_column(String(2), default="en")
     steps_html: Mapped[str] = mapped_column(Text)
     main_media_id: Mapped[int | None] = mapped_column(ForeignKey("media.id"), nullable=True)
+    prep_time_minutes: Mapped[int] = mapped_column(Integer, default=30)
     servings: Mapped[float] = mapped_column(Numeric(8, 2))
     author_complexity: Mapped[int] = mapped_column(Integer)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -127,6 +138,25 @@ class RecipeIngredient(Base):
     unit: Mapped[str | None] = mapped_column(String, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipes.id"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Rating(Base):
+    __tablename__ = "ratings"
+    __table_args__ = (UniqueConstraint("recipe_id", "user_id"),)
+
+    recipe_id: Mapped[int] = mapped_column(ForeignKey("recipes.id"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    rating: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Media(Base):

@@ -460,6 +460,20 @@ maybe_apply_schema() {
   PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$schema_file"
 }
 
+apply_database_migrations() {
+  local migrations_dir="$APP_DIR/db/migrations"
+
+  command_exists psql || return 0
+  [[ -d "$migrations_dir" ]] || return 0
+
+  log "Applying database migrations from $migrations_dir"
+  for migration_file in "$migrations_dir"/*.sql; do
+    [[ -f "$migration_file" ]] || continue
+    log "Applying database migration $(basename "$migration_file")"
+    PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -f "$migration_file"
+  done
+}
+
 install_service() {
   [[ -f "$SYSTEMD_TEMPLATE_PATH" ]] || die "Missing systemd template: $SYSTEMD_TEMPLATE_PATH"
 

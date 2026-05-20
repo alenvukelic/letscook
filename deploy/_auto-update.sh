@@ -24,6 +24,7 @@ main() {
   sync_runtime_tree
   ensure_backend_env
   ensure_backend_venv
+  apply_database_migrations
   build_frontend
   install_service
   maybe_setup_nginx

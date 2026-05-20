@@ -16,9 +16,15 @@ class IngredientOption(BaseModel):
     name: str
 
 
+class MeasurementUnitOption(BaseModel):
+    code: str
+    label: str
+
+
 class RecipeFormOptions(BaseModel):
     categories: list[CategoryOption]
     ingredients: list[IngredientOption]
+    units: list[MeasurementUnitOption]
 
 
 class RecipeIngredientInput(BaseModel):
@@ -34,6 +40,7 @@ class RecipeWrite(BaseModel):
     category_id: int | None = None
     language: str = Field(default="hr", min_length=2, max_length=2)
     steps_html: str = Field(min_length=1)
+    prep_time_minutes: int = Field(gt=0, le=1440)
     servings: float = Field(gt=0)
     author_complexity: int = Field(ge=1, le=5)
     ingredients: list[RecipeIngredientInput] = Field(default_factory=list)
@@ -63,7 +70,13 @@ class RecipeListItem(BaseModel):
     title: str
     language: str
     servings: float
+    prep_time_minutes: int
     author_complexity: int
+    likes_count: int
+    rating_average: float | None
+    ratings_count: int
+    user_liked: bool
+    user_rating: int | None
     category_name: str | None
     author_name: str
     author_username: str
@@ -89,3 +102,7 @@ class RecipeDetail(RecipeListItem):
 class RecipeVisibilityUpdate(BaseModel):
     hidden: bool | None = None
     deleted: bool | None = None
+
+
+class RatingWrite(BaseModel):
+    rating: int = Field(ge=1, le=5)

@@ -13,9 +13,12 @@ from app.core.sanitizer import sanitize_recipe_html
 from app.db.session import get_session
 from app.models import (
     Category,
+    Favorite,
     Ingredient,
     IngredientTranslation,
     Media,
+    MeasurementUnit,
+    Rating,
     Recipe,
     RecipeIngredient,
     User,
@@ -24,6 +27,8 @@ from app.models import (
 from app.schemas.recipe import (
     CategoryOption,
     IngredientOption,
+    MeasurementUnitOption,
+    RatingWrite,
     RecipeDetail,
     RecipeFormOptions,
     RecipeIngredientView,
@@ -66,6 +71,11 @@ def serialize_recipe_list_item(
     author_username: str,
     category_name: str | None,
     main_image_url: str | None,
+    likes_count: int,
+    rating_average: float | None,
+    ratings_count: int,
+    user_liked: bool,
+    user_rating: int | None,
     user: User | None,
 ) -> RecipeListItem:
     return RecipeListItem(
@@ -73,7 +83,13 @@ def serialize_recipe_list_item(
         title=recipe.title,
         language=recipe.language,
         servings=float(recipe.servings),
+        prep_time_minutes=recipe.prep_time_minutes,
         author_complexity=recipe.author_complexity,
+        likes_count=likes_count,
+        rating_average=rating_average,
+        ratings_count=ratings_count,
+        user_liked=user_liked,
+        user_rating=user_rating,
         category_name=category_name,
         author_name=author_name,
         author_username=author_username,
@@ -90,7 +106,7 @@ def serialize_recipe_list_item(
 
 async def ensure_category_exists(session: AsyncSession, category_id: int | None) -> None:
     if category_id is None:
-        return
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category is required")
     category = await session.scalar(select(Category.id).where(Category.id == category_id))
     if category is None:
         raise HTTPException(
@@ -245,10 +261,65 @@ def extract_steps(steps_html: str) -> list[str]:
     return [re.sub(r"<[^>]+>", "", item).strip() for item in paragraph_matches if item.strip()]
 
 
+async def load_recipe_interactions(
+    session: AsyncSession, recipe_ids: list[int], user: User | None
+) -> dict[int, dict[str, int | float | bool | None]]:
+    if not recipe_ids:
+        return {}
+
+    data = {
+        recipe_id: {
+            "likes_count": 0,
+            "rating_average": None,
+            "ratings_count": 0,
+            "user_liked": False,
+            "user_rating": None,
+        }
+        for recipe_id in recipe_ids
+    }
+
+    like_rows = await session.execute(
+        select(Favorite.recipe_id, func.count(Favorite.user_id))
+        .where(Favorite.recipe_id.in_(recipe_ids))
+        .group_by(Favorite.recipe_id)
+    )
+    for recipe_id, count in like_rows:
+        data[recipe_id]["likes_count"] = int(count)
+
+    rating_rows = await session.execute(
+        select(Rating.recipe_id, func.avg(Rating.rating), func.count(Rating.user_id))
+        .where(Rating.recipe_id.in_(recipe_ids))
+        .group_by(Rating.recipe_id)
+    )
+    for recipe_id, average, count in rating_rows:
+        data[recipe_id]["rating_average"] = round(float(average), 1) if average is not None else None
+        data[recipe_id]["ratings_count"] = int(count)
+
+    if user is not None:
+        user_like_rows = await session.scalars(
+            select(Favorite.recipe_id).where(
+                Favorite.recipe_id.in_(recipe_ids), Favorite.user_id == user.id
+            )
+        )
+        for recipe_id in user_like_rows:
+            data[recipe_id]["user_liked"] = True
+
+        user_rating_rows = await session.execute(
+            select(Rating.recipe_id, Rating.rating).where(
+                Rating.recipe_id.in_(recipe_ids), Rating.user_id == user.id
+            )
+        )
+        for recipe_id, rating in user_rating_rows:
+            data[recipe_id]["user_rating"] = rating
+
+    return data
+
+
 @router.get("", response_model=list[RecipeListItem])
 async def list_recipes(
     q: str | None = Query(default=None),
     mine: bool = Query(default=False),
+    favorites: bool = Query(default=False),
     include_hidden: bool = Query(default=False),
     current_user: User | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
@@ -277,7 +348,16 @@ async def list_recipes(
             )
         )
 
-    if mine:
+    if favorites:
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+        statement = statement.join(Favorite, Favorite.recipe_id == Recipe.id).where(
+            Favorite.user_id == current_user.id, Recipe.deleted.is_(False)
+        )
+    elif mine:
         if current_user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -293,6 +373,10 @@ async def list_recipes(
             statement = statement.where(Recipe.hidden.is_(False), Recipe.deleted.is_(False))
 
     rows = await session.execute(statement.order_by(Recipe.created_at.desc()).distinct())
+    results = rows.all()
+    interactions = await load_recipe_interactions(
+        session, [recipe.id for recipe, *_ in results], current_user
+    )
     return [
         serialize_recipe_list_item(
             recipe,
@@ -300,9 +384,14 @@ async def list_recipes(
             author_username=author_email.split("@", 1)[0],
             category_name=category_name,
             main_image_url=media_url(storage_path) if storage_path else None,
+            likes_count=int(interactions[recipe.id]["likes_count"] or 0),
+            rating_average=interactions[recipe.id]["rating_average"],
+            ratings_count=int(interactions[recipe.id]["ratings_count"] or 0),
+            user_liked=bool(interactions[recipe.id]["user_liked"]),
+            user_rating=interactions[recipe.id]["user_rating"],
             user=current_user,
         )
-        for recipe, author_name, author_email, category_name, storage_path in rows.all()
+        for recipe, author_name, author_email, category_name, storage_path in results
     ]
 
 
@@ -342,12 +431,18 @@ async def recipe_options(
             )
         )
     )
+    unit_rows = await session.execute(
+        select(MeasurementUnit.code, MeasurementUnit.label).order_by(
+            MeasurementUnit.sort_order.asc(), MeasurementUnit.label.asc()
+        )
+    )
     return RecipeFormOptions(
         categories=[CategoryOption(id=row.id, name=row.name) for row in category_rows],
         ingredients=[
             IngredientOption(id=row.id, canonical_name=row.canonical_name, name=row.name)
             for row in ingredient_rows
         ],
+        units=[MeasurementUnitOption(code=row.code, label=row.label) for row in unit_rows],
     )
 
 
@@ -375,12 +470,18 @@ async def recipe_detail(
 
     ingredients = await load_recipe_ingredients(session, recipe.id, language=language)
     media = await load_recipe_media(session, recipe.id)
+    interactions = await load_recipe_interactions(session, [recipe.id], current_user)
     list_item = serialize_recipe_list_item(
         recipe,
         author_name=author_name,
         author_username=author_email.split("@", 1)[0],
         category_name=category_name,
         main_image_url=media_url(storage_path) if storage_path else None,
+        likes_count=int(interactions[recipe.id]["likes_count"] or 0),
+        rating_average=interactions[recipe.id]["rating_average"],
+        ratings_count=int(interactions[recipe.id]["ratings_count"] or 0),
+        user_liked=bool(interactions[recipe.id]["user_liked"]),
+        user_rating=interactions[recipe.id]["user_rating"],
         user=current_user,
     )
     return RecipeDetail(
@@ -412,6 +513,7 @@ async def create_recipe(
         title=payload.title.strip(),
         language=payload.language.lower(),
         steps_html=sanitize_recipe_html(payload.steps_html),
+        prep_time_minutes=payload.prep_time_minutes,
         servings=payload.servings,
         author_complexity=payload.author_complexity,
         hidden=False,
@@ -465,6 +567,7 @@ async def update_recipe(
     recipe.category_id = payload.category_id
     recipe.language = payload.language.lower()
     recipe.steps_html = sanitize_recipe_html(payload.steps_html)
+    recipe.prep_time_minutes = payload.prep_time_minutes
     recipe.servings = payload.servings
     recipe.author_complexity = payload.author_complexity
     recipe.updated_at = datetime.now(UTC)
@@ -540,3 +643,86 @@ async def update_recipe_visibility(
         current_user=current_user,
         session=session,
     )
+
+
+@router.put("/{recipe_id}/like", response_model=RecipeDetail)
+async def like_recipe(
+    recipe_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> RecipeDetail:
+    recipe = await session.get(Recipe, recipe_id)
+    if recipe is None or not recipe_visible_to_user(recipe, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
+
+    existing = await session.get(Favorite, {"recipe_id": recipe_id, "user_id": current_user.id})
+    if existing is None:
+        session.add(Favorite(recipe_id=recipe_id, user_id=current_user.id))
+        await log_action(
+            session,
+            code="favorite.saved",
+            actor_user_id=current_user.id,
+            target_user_id=recipe.author_id,
+            request=request,
+            extra={"table": "favorites", "record_id": recipe_id},
+        )
+    await session.commit()
+    return await recipe_detail(recipe_id, language=recipe.language, current_user=current_user, session=session)
+
+
+@router.delete("/{recipe_id}/like", response_model=RecipeDetail)
+async def unlike_recipe(
+    recipe_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> RecipeDetail:
+    recipe = await session.get(Recipe, recipe_id)
+    if recipe is None or not recipe_visible_to_user(recipe, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
+
+    existing = await session.get(Favorite, {"recipe_id": recipe_id, "user_id": current_user.id})
+    if existing is not None:
+        await session.delete(existing)
+        await log_action(
+            session,
+            code="favorite.removed",
+            actor_user_id=current_user.id,
+            target_user_id=recipe.author_id,
+            request=request,
+            extra={"table": "favorites", "record_id": recipe_id},
+        )
+    await session.commit()
+    return await recipe_detail(recipe_id, language=recipe.language, current_user=current_user, session=session)
+
+
+@router.put("/{recipe_id}/rating", response_model=RecipeDetail)
+async def rate_recipe(
+    recipe_id: int,
+    payload: RatingWrite,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> RecipeDetail:
+    recipe = await session.get(Recipe, recipe_id)
+    if recipe is None or not recipe_visible_to_user(recipe, current_user):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipe not found")
+
+    rating = await session.get(Rating, {"recipe_id": recipe_id, "user_id": current_user.id})
+    if rating is None:
+        rating = Rating(recipe_id=recipe_id, user_id=current_user.id, rating=payload.rating)
+        session.add(rating)
+    else:
+        rating.rating = payload.rating
+        rating.updated_at = datetime.now(UTC)
+    await log_action(
+        session,
+        code="rating.saved",
+        actor_user_id=current_user.id,
+        target_user_id=recipe.author_id,
+        request=request,
+        extra={"table": "ratings", "record_id": recipe_id, "rating": payload.rating},
+    )
+    await session.commit()
+    return await recipe_detail(recipe_id, language=recipe.language, current_user=current_user, session=session)
