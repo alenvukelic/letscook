@@ -16,8 +16,8 @@ from app.models import (
     Favorite,
     Ingredient,
     IngredientTranslation,
-    Media,
     MeasurementUnit,
+    Media,
     Rating,
     Recipe,
     RecipeIngredient,
@@ -43,7 +43,11 @@ router = APIRouter(prefix="/recipes")
 
 
 def user_can_edit_recipe(user: User, recipe: Recipe) -> bool:
-    return user.id == recipe.author_id or user.role == UserRole.superadmin
+    return user.id == recipe.author_id or user.role in {
+        UserRole.moderator,
+        UserRole.administrator,
+        UserRole.superadmin,
+    }
 
 
 def user_can_hide_recipe(user: User) -> bool:
@@ -54,6 +58,10 @@ def user_can_delete_recipe(user: User) -> bool:
     return user.role in {UserRole.administrator, UserRole.superadmin}
 
 
+def user_can_verify_recipe(user: User) -> bool:
+    return user.role in {UserRole.moderator, UserRole.administrator, UserRole.superadmin}
+
+
 def recipe_visible_to_user(recipe: Recipe, user: User | None) -> bool:
     if recipe.deleted:
         return bool(user and user_can_delete_recipe(user))
@@ -61,7 +69,7 @@ def recipe_visible_to_user(recipe: Recipe, user: User | None) -> bool:
         return True
     if user is None:
         return False
-    return recipe.author_id == user.id or user_can_hide_recipe(user)
+    return user_can_hide_recipe(user)
 
 
 def serialize_recipe_list_item(
@@ -90,6 +98,7 @@ def serialize_recipe_list_item(
         ratings_count=ratings_count,
         user_liked=user_liked,
         user_rating=user_rating,
+        verified=recipe.verified,
         category_name=category_name,
         author_name=author_name,
         author_username=author_username,
@@ -101,6 +110,7 @@ def serialize_recipe_list_item(
         can_edit=bool(user and user_can_edit_recipe(user, recipe) and not recipe.deleted),
         can_hide=bool(user and user_can_hide_recipe(user) and not recipe.deleted),
         can_delete=bool(user and user_can_delete_recipe(user)),
+        can_verify=bool(user and user_can_verify_recipe(user) and not recipe.deleted),
     )
 
 
@@ -292,7 +302,9 @@ async def load_recipe_interactions(
         .group_by(Rating.recipe_id)
     )
     for recipe_id, average, count in rating_rows:
-        data[recipe_id]["rating_average"] = round(float(average), 1) if average is not None else None
+        data[recipe_id]["rating_average"] = (
+            round(float(average), 1) if average is not None else None
+        )
         data[recipe_id]["ratings_count"] = int(count)
 
     if user is not None:
@@ -321,6 +333,7 @@ async def list_recipes(
     mine: bool = Query(default=False),
     favorites: bool = Query(default=False),
     include_hidden: bool = Query(default=False),
+    unverified: bool = Query(default=False),
     current_user: User | None = Depends(get_optional_user),
     session: AsyncSession = Depends(get_session),
 ) -> list[RecipeListItem]:
@@ -348,6 +361,20 @@ async def list_recipes(
             )
         )
 
+    if unverified:
+        if current_user is None or not user_can_verify_recipe(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You cannot view unverified recipes queue",
+            )
+        statement = statement.where(Recipe.verified.is_(False))
+
+    if include_hidden and (current_user is None or not user_can_hide_recipe(current_user)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You cannot include hidden recipes",
+        )
+
     if favorites:
         if current_user is None:
             raise HTTPException(
@@ -355,19 +382,27 @@ async def list_recipes(
                 detail="Authentication required",
             )
         statement = statement.join(Favorite, Favorite.recipe_id == Recipe.id).where(
-            Favorite.user_id == current_user.id, Recipe.deleted.is_(False)
+            Favorite.user_id == current_user.id,
+            Recipe.deleted.is_(False),
         )
+        if not include_hidden:
+            statement = statement.where(Recipe.hidden.is_(False))
     elif mine:
         if current_user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required",
             )
-        statement = statement.where(Recipe.author_id == current_user.id, Recipe.deleted.is_(False))
+        statement = statement.where(
+            Recipe.author_id == current_user.id,
+            Recipe.deleted.is_(False),
+        )
+        if not include_hidden:
+            statement = statement.where(Recipe.hidden.is_(False))
     else:
         if current_user is None:
             statement = statement.where(Recipe.hidden.is_(False), Recipe.deleted.is_(False))
-        elif include_hidden and user_can_hide_recipe(current_user):
+        elif include_hidden:
             statement = statement.where(Recipe.deleted.is_(False))
         else:
             statement = statement.where(Recipe.hidden.is_(False), Recipe.deleted.is_(False))
@@ -516,6 +551,7 @@ async def create_recipe(
         prep_time_minutes=payload.prep_time_minutes,
         servings=payload.servings,
         author_complexity=payload.author_complexity,
+        verified=False,
         hidden=False,
         deleted=False,
         created_at=datetime.now(UTC),
@@ -636,6 +672,23 @@ async def update_recipe_visibility(
             extra={"table": "recipes", "record_id": recipe.id, "deleted": payload.deleted},
         )
 
+    if payload.verified is not None:
+        if not user_can_verify_recipe(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You cannot verify recipes",
+            )
+        recipe.verified = payload.verified
+        recipe.updated_at = datetime.now(UTC)
+        await log_action(
+            session,
+            code="recipe.verified",
+            actor_user_id=current_user.id,
+            target_user_id=recipe.author_id,
+            request=request,
+            extra={"table": "recipes", "record_id": recipe.id, "verified": payload.verified},
+        )
+
     await session.commit()
     return await recipe_detail(
         recipe.id,
@@ -668,7 +721,12 @@ async def like_recipe(
             extra={"table": "favorites", "record_id": recipe_id},
         )
     await session.commit()
-    return await recipe_detail(recipe_id, language=recipe.language, current_user=current_user, session=session)
+    return await recipe_detail(
+        recipe_id,
+        language=recipe.language,
+        current_user=current_user,
+        session=session,
+    )
 
 
 @router.delete("/{recipe_id}/like", response_model=RecipeDetail)
@@ -694,7 +752,12 @@ async def unlike_recipe(
             extra={"table": "favorites", "record_id": recipe_id},
         )
     await session.commit()
-    return await recipe_detail(recipe_id, language=recipe.language, current_user=current_user, session=session)
+    return await recipe_detail(
+        recipe_id,
+        language=recipe.language,
+        current_user=current_user,
+        session=session,
+    )
 
 
 @router.put("/{recipe_id}/rating", response_model=RecipeDetail)
@@ -725,4 +788,9 @@ async def rate_recipe(
         extra={"table": "ratings", "record_id": recipe_id, "rating": payload.rating},
     )
     await session.commit()
-    return await recipe_detail(recipe_id, language=recipe.language, current_user=current_user, session=session)
+    return await recipe_detail(
+        recipe_id,
+        language=recipe.language,
+        current_user=current_user,
+        session=session,
+    )

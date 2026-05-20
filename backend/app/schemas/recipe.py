@@ -77,6 +77,7 @@ class RecipeListItem(BaseModel):
     ratings_count: int
     user_liked: bool
     user_rating: int | None
+    verified: bool
     category_name: str | None
     author_name: str
     author_username: str
@@ -88,6 +89,7 @@ class RecipeListItem(BaseModel):
     can_edit: bool
     can_hide: bool
     can_delete: bool
+    can_verify: bool
 
 
 class RecipeDetail(RecipeListItem):
@@ -102,6 +104,7 @@ class RecipeDetail(RecipeListItem):
 class RecipeVisibilityUpdate(BaseModel):
     hidden: bool | None = None
     deleted: bool | None = None
+    verified: bool | None = None
 
 
 class RatingWrite(BaseModel):

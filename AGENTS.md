@@ -51,6 +51,7 @@
 - The initial `superadmin` account is `users.id = 1` and should be protected from deletion, banning, or demotion.
 - Recipe creation is expected to support structured ingredients, servings, tags, category, rich-text steps, optional main image, and mixed ingredient rows where a canonical ingredient can also carry free text or a row can be plain explanatory text.
 - Recipe creation/editing requires category, servings, preparation time, and author complexity.
+- Newly created recipes should be visible immediately but marked unverified until a moderator, administrator, or superadmin verifies them.
 - The original notes expect both author complexity and community complexity to be stored and displayed.
 - Search is expected to cover title, ingredients, tags, and steps, with ingredient-based matching as an important use case.
 - Recipes may have parent/child relationships to represent variations or clones.

@@ -119,6 +119,7 @@ class Recipe(Base):
     prep_time_minutes: Mapped[int] = mapped_column(Integer, default=30)
     servings: Mapped[float] = mapped_column(Numeric(8, 2))
     author_complexity: Mapped[int] = mapped_column(Integer)
+    verified: Mapped[bool] = mapped_column(Boolean, default=True)
     hidden: Mapped[bool] = mapped_column(Boolean, default=False)
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     hidden_id: Mapped[int | None] = mapped_column(ForeignKey("action_log.id"), nullable=True)

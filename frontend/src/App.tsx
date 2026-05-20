@@ -9,12 +9,13 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.3";
+const appVersion = "0.2.4";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
 type AuthPanelMode = "login" | "register";
 type ProfilePanelMode = "profile" | "password";
+type RecipeScope = "all" | "mine" | "favorites";
 
 type User = {
   id: number;
@@ -55,6 +56,7 @@ type RecipeListItem = {
   ratings_count: number;
   user_liked: boolean;
   user_rating: number | null;
+  verified: boolean;
   category_name: string | null;
   author_name: string;
   author_username: string;
@@ -66,6 +68,7 @@ type RecipeListItem = {
   can_edit: boolean;
   can_hide: boolean;
   can_delete: boolean;
+  can_verify: boolean;
 };
 
 type RecipeIngredient = {
@@ -118,7 +121,8 @@ type Route =
   | { name: "detail"; recipeId: number }
   | { name: "new" }
   | { name: "edit"; recipeId: number }
-  | { name: "profile" };
+  | { name: "profile" }
+  | { name: "management" };
 
 const emptyIngredientRow = (): RecipeFormIngredient => ({
   ingredient_id: null,
@@ -142,8 +146,6 @@ const emptyRecipeForm = (): RecipeFormState => ({
 const navItems = [
   { label: "Svi recepti", icon: "R", path: "/recipes" },
   { label: "Novi recept", icon: "+", path: "/recipes/new" },
-  { label: "Omiljeni", icon: "O", action: "favorites" },
-  { label: "Moji recepti", icon: "M", action: "mine" },
 ];
 
 const languages = [
@@ -153,9 +155,9 @@ const languages = [
 ];
 
 const changelog = [
-  "Editor postupka je nadograđen i lakše umeće slike recepta.",
-  "Korisnički status i profilna slika su jasnije prikazani.",
-  "Kompleksnost je sada jednako prikazana na karticama i u editoru.",
+  "Dodano je Upravljanje za provjeru novih recepata.",
+  "Pregled recepata sada ima jednostavan izbor: Svi, Moji ili Omiljeni.",
+  "Novi recepti su vidljivi odmah, ali čekaju provjeru moderatora.",
 ];
 
 class ApiError extends Error {
@@ -182,6 +184,10 @@ function parseRoute(): Route {
 
   if (parts[0] === "profile") {
     return { name: "profile" };
+  }
+
+  if (parts[0] === "management") {
+    return { name: "management" };
   }
 
   if (parts[0] !== "recipes") {
@@ -513,9 +519,9 @@ export function App() {
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
   const [language, setLanguage] = useState(localStorage.getItem(languageStorageKey) ?? "hr");
   const [query, setQuery] = useState("");
-  const [mineOnly, setMineOnly] = useState(false);
-  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [recipeScope, setRecipeScope] = useState<RecipeScope>("all");
   const [includeHidden, setIncludeHidden] = useState(false);
+  const [managementMode, setManagementMode] = useState<"latest" | "unverified">("unverified");
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPanelMode, setAuthPanelMode] = useState<AuthPanelMode>("login");
@@ -541,6 +547,7 @@ export function App() {
 
   const isModerator =
     user?.role === "moderator" || user?.role === "administrator" || user?.role === "superadmin";
+  const isAdmin = user?.role === "administrator" || user?.role === "superadmin";
   const collapsedNav = route.name === "detail";
 
   useEffect(() => {
@@ -596,7 +603,7 @@ export function App() {
 
   useEffect(() => {
     void loadRecipes();
-  }, [token, query, mineOnly, favoritesOnly, includeHidden, language]);
+  }, [token, query, recipeScope, includeHidden, managementMode, route, language]);
 
   useEffect(() => {
     if (route.name === "detail" || route.name === "edit") {
@@ -616,7 +623,15 @@ export function App() {
       requireAuth("Za uređivanje profila prijavi se u aplikaciju.");
       navigate("/recipes");
     }
-  }, [route, token, language]);
+    if (route.name === "management" && !token) {
+      requireAuth("Za upravljanje receptima prijavi se u aplikaciju.");
+      navigate("/recipes");
+    }
+    if (route.name === "management" && user && !isModerator) {
+      setNotice("Upravljanje je dostupno samo moderatorima i administratorima.");
+      navigate("/recipes");
+    }
+  }, [route, token, language, user, isModerator]);
 
   useEffect(() => {
     if (route.name === "edit" && recipeDetail) {
@@ -631,14 +646,20 @@ export function App() {
     if (query.trim()) {
       params.set("q", query.trim());
     }
-    if (mineOnly) {
+    if (recipeScope === "mine") {
       params.set("mine", "true");
     }
-    if (favoritesOnly) {
+    if (recipeScope === "favorites") {
       params.set("favorites", "true");
     }
-    if (includeHidden) {
+    if (isModerator && includeHidden) {
       params.set("include_hidden", "true");
+    }
+    if (route.name === "management") {
+      params.set("include_hidden", "true");
+      if (managementMode === "unverified") {
+        params.set("unverified", "true");
+      }
     }
 
     try {
@@ -646,8 +667,7 @@ export function App() {
       setRecipes(list);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        setMineOnly(false);
-        setFavoritesOnly(false);
+        setRecipeScope("all");
         setIncludeHidden(false);
         requireAuth("Sesija je istekla. Prijavi se ponovno.");
       } else {
@@ -716,8 +736,7 @@ export function App() {
     setToken(null);
     setUser(null);
     setProfileOpen(false);
-    setMineOnly(false);
-    setFavoritesOnly(false);
+    setRecipeScope("all");
     setIncludeHidden(false);
     setNotice("Odjavljen si.");
     navigate("/recipes");
@@ -729,8 +748,7 @@ export function App() {
       if (!requireAuth("Za pregled svojih recepata prijavi se u aplikaciju.")) {
         return;
       }
-      setMineOnly(true);
-      setFavoritesOnly(false);
+      setRecipeScope("mine");
       navigate("/recipes");
       return;
     }
@@ -738,8 +756,7 @@ export function App() {
       if (!requireAuth("Za omiljene recepte prijavi se u aplikaciju.")) {
         return;
       }
-      setFavoritesOnly(true);
-      setMineOnly(false);
+      setRecipeScope("favorites");
       navigate("/recipes");
       return;
     }
@@ -757,6 +774,16 @@ export function App() {
       }
       setProfilePanelMode("password");
       navigate("/profile");
+      return;
+    }
+    if (action === "management") {
+      if (!isModerator) {
+        setNotice("Upravljanje je dostupno samo moderatorima i administratorima.");
+        return;
+      }
+      setManagementMode("unverified");
+      setRecipeScope("all");
+      navigate("/management");
     }
   }
 
@@ -913,7 +940,7 @@ export function App() {
     }
   }
 
-  async function updateVisibility(patch: { hidden?: boolean; deleted?: boolean }) {
+  async function updateVisibility(patch: { hidden?: boolean; deleted?: boolean; verified?: boolean }) {
     if (!recipeDetail || !token) {
       return;
     }
@@ -924,6 +951,26 @@ export function App() {
         token,
       );
       setRecipeDetail(updated);
+      setNotice("Status recepta je promijenjen.");
+      await loadRecipes();
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
+  async function updateRecipeFromList(
+    recipeId: number,
+    patch: { hidden?: boolean; deleted?: boolean; verified?: boolean },
+  ) {
+    if (!token) {
+      return;
+    }
+    try {
+      await apiRequest<RecipeDetail>(
+        `/recipes/${recipeId}/visibility`,
+        { method: "PATCH", body: JSON.stringify(patch) },
+        token,
+      );
       setNotice("Status recepta je promijenjen.");
       await loadRecipes();
     } catch (error) {
@@ -982,17 +1029,17 @@ export function App() {
         </button>
 
         <nav class="main-nav" aria-label="Main navigation">
-          {navItems.map((item) => (
+          {[...navItems, ...(isModerator ? [{ label: "Upravljanje", icon: "U", action: "management" }] : [])].map((item) => (
             <button
               key={item.label}
               type="button"
               class="nav-link"
               onClick={() => {
-                if (item.path) {
+                if ("path" in item) {
                   navigate(item.path);
                   return;
                 }
-                handleUserMenu(item.action!);
+                handleUserMenu(item.action);
               }}
             >
               <span class="nav-icon">{item.icon}</span>
@@ -1015,7 +1062,9 @@ export function App() {
                     ? "Dodaj novi recept"
                     : route.name === "profile"
                       ? "Profil i podaci"
-                      : "Novi i najzanimljiviji recepti"}
+                      : route.name === "management"
+                        ? "Upravljanje"
+                        : "Novi i najzanimljiviji recepti"}
             </h1>
           </div>
 
@@ -1200,51 +1249,61 @@ export function App() {
         {appError ? <div class="alert error">{appError}</div> : null}
         {notice ? <div class="alert notice">{notice}</div> : null}
 
-        {route.name === "list" ? (
+        {(route.name === "list" || route.name === "management") ? (
           <section class="content-grid">
             <div class="content-main">
               <div class="filter-bar panel">
-                <label class="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={mineOnly}
-                    disabled={!user}
-                    onChange={(event) => {
-                      const checked = (event.currentTarget as HTMLInputElement).checked;
-                      setMineOnly(checked);
-                      if (checked) {
-                        setFavoritesOnly(false);
+                {route.name === "list" ? (
+                  <div class="segmented-control" aria-label="Prikaz recepata">
+                    {[
+                      ["all", "Svi"],
+                      ["mine", "Moji recepti"],
+                      ["favorites", "Omiljeni"],
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        class={recipeScope === value ? "active" : ""}
+                        disabled={value !== "all" && !user}
+                        onClick={() => setRecipeScope(value as RecipeScope)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div class="segmented-control" aria-label="Upravljanje receptima">
+                    <button
+                      type="button"
+                      class={managementMode === "unverified" ? "active" : ""}
+                      onClick={() => setManagementMode("unverified")}
+                    >
+                      Neprovjereni recepti
+                    </button>
+                    <button
+                      type="button"
+                      class={managementMode === "latest" ? "active" : ""}
+                      onClick={() => setManagementMode("latest")}
+                    >
+                      Zadnji recepti
+                    </button>
+                  </div>
+                )}
+                {route.name === "list" && isModerator ? (
+                  <label class="inline-check">
+                    <input
+                      type="checkbox"
+                      checked={includeHidden}
+                      onChange={(event) =>
+                        setIncludeHidden((event.currentTarget as HTMLInputElement).checked)
                       }
-                    }}
-                  />
-                  <span>Samo moji recepti</span>
-                </label>
-                <label class="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={favoritesOnly}
-                    disabled={!user}
-                    onChange={(event) => {
-                      const checked = (event.currentTarget as HTMLInputElement).checked;
-                      setFavoritesOnly(checked);
-                      if (checked) {
-                        setMineOnly(false);
-                      }
-                    }}
-                  />
-                  <span>Omiljeni recepti</span>
-                </label>
-                <label class="inline-check">
-                  <input
-                    type="checkbox"
-                    checked={includeHidden}
-                    disabled={!isModerator}
-                    onChange={(event) =>
-                      setIncludeHidden((event.currentTarget as HTMLInputElement).checked)
-                    }
-                  />
-                  <span>Prikaži skrivene</span>
-                </label>
+                    />
+                    <span>Prikaži skrivene</span>
+                  </label>
+                ) : null}
+                {route.name === "management" && isAdmin ? (
+                  <span class="management-note">Korisnici i logovi dolaze ovdje za administratore.</span>
+                ) : null}
               </div>
 
               <div class={viewMode === "tiles" ? "recipe-grid" : "recipe-list-rows"}>
@@ -1264,16 +1323,56 @@ export function App() {
                         <div class="recipe-card-meta">
                           <span>{recipe.category_name ?? "Bez kategorije"}</span>
                           {recipe.hidden ? <span class="status-tag">hidden</span> : null}
+                          {!recipe.verified ? <span class="status-tag warning-tag">neprovjereno</span> : null}
                         </div>
                         <h3>{recipe.title}</h3>
                         <p class="muted">@{recipe.author_username}</p>
                         <RecipeMetaStrip recipe={recipe} />
                       </div>
                     </button>
+                    {route.name === "management" ? (
+                      <div class="recipe-card-actions">
+                        {recipe.can_verify && !recipe.verified ? (
+                          <button
+                            type="button"
+                            class="primary small-action"
+                            onClick={() => updateRecipeFromList(recipe.id, { verified: true })}
+                          >
+                            Verificiraj
+                          </button>
+                        ) : null}
+                        {recipe.can_hide ? (
+                          <button
+                            type="button"
+                            class="secondary small-action"
+                            onClick={() => updateRecipeFromList(recipe.id, { hidden: !recipe.hidden })}
+                          >
+                            {recipe.hidden ? "Vrati" : "Sakrij"}
+                          </button>
+                        ) : null}
+                        {recipe.can_edit ? (
+                          <button
+                            type="button"
+                            class="secondary small-action"
+                            onClick={() => navigate(`/recipes/${recipe.id}/edit`)}
+                          >
+                            Uredi
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </article>
                 ))}
                 {!recipes.length && !loadingRecipes ? (
-                  <div class="panel empty-card">Nema recepata za prikaz.</div>
+                  <div class="panel empty-card">
+                    {recipeScope === "mine"
+                      ? "Nema tvojih recepata."
+                      : recipeScope === "favorites"
+                        ? "Nema omiljenih recepata."
+                        : route.name === "management" && managementMode === "unverified"
+                          ? "Nema neprovjerenih recepata."
+                          : "Nema recepata za prikaz."}
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -1297,6 +1396,15 @@ export function App() {
                       Uredi
                     </button>
                   ) : null}
+                  {recipeDetail?.can_verify && !recipeDetail.verified ? (
+                    <button
+                      type="button"
+                      class="primary"
+                      onClick={() => updateVisibility({ verified: true })}
+                    >
+                      Verificiraj
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
@@ -1308,6 +1416,7 @@ export function App() {
                     <div class="meta-strip">
                       <span>@{recipeDetail.author_username}</span>
                       <span>{recipeDetail.category_name ?? "Bez kategorije"}</span>
+                      {!recipeDetail.verified ? <span class="status-tag warning-tag">neprovjereno</span> : null}
                     </div>
                     <RecipeMetaStrip recipe={recipeDetail} className="detail-facts" />
                     <div class="recipe-actions-strip">
