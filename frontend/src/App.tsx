@@ -1,3 +1,4 @@
+import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import pell from "pell";
 import "pell/dist/pell.min.css";
@@ -9,7 +10,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.4";
+const appVersion = "0.2.5";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -122,7 +123,8 @@ type Route =
   | { name: "new" }
   | { name: "edit"; recipeId: number }
   | { name: "profile" }
-  | { name: "management" };
+  | { name: "management" }
+  | { name: "changelog" };
 
 const emptyIngredientRow = (): RecipeFormIngredient => ({
   ingredient_id: null,
@@ -154,12 +156,6 @@ const languages = [
   { code: "de", label: "DE" },
 ];
 
-const changelog = [
-  "Dodano je Upravljanje za provjeru novih recepata.",
-  "Pregled recepata sada ima jednostavan izbor: Svi, Moji ili Omiljeni.",
-  "Novi recepti su vidljivi odmah, ali čekaju provjeru moderatora.",
-];
-
 class ApiError extends Error {
   status: number;
 
@@ -188,6 +184,10 @@ function parseRoute(): Route {
 
   if (parts[0] === "management") {
     return { name: "management" };
+  }
+
+  if (parts[0] === "changelog") {
+    return { name: "changelog" };
   }
 
   if (parts[0] !== "recipes") {
@@ -269,6 +269,53 @@ function usernameFromUser(user: User | null): string {
 
 function formatServing(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toLocaleString("hr-HR");
+}
+
+function renderMarkdown(markdown: string): JSX.Element[] {
+  const elements: JSX.Element[] = [];
+  let listItems: string[] = [];
+
+  const flushList = () => {
+    if (!listItems.length) {
+      return;
+    }
+    const items = listItems;
+    listItems = [];
+    elements.push(
+      <ul key={`list-${elements.length}`}>
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>,
+    );
+  };
+
+  markdown.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList();
+      return;
+    }
+    if (trimmed.startsWith("# ")) {
+      flushList();
+      elements.push(<h2 key={`h2-${elements.length}`}>{trimmed.slice(2)}</h2>);
+      return;
+    }
+    if (trimmed.startsWith("## ")) {
+      flushList();
+      elements.push(<h3 key={`h3-${elements.length}`}>{trimmed.slice(3)}</h3>);
+      return;
+    }
+    if (trimmed.startsWith("- ")) {
+      listItems.push(trimmed.slice(2));
+      return;
+    }
+    flushList();
+    elements.push(<p key={`p-${elements.length}`}>{trimmed}</p>);
+  });
+
+  flushList();
+  return elements;
 }
 
 function RecipeMetaStrip({ recipe, className = "" }: { recipe: RecipeListItem; className?: string }) {
@@ -517,6 +564,7 @@ export function App() {
   const [options, setOptions] = useState<RecipeFormOptions>({ categories: [], ingredients: [], units: [] });
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
+  const [changelogMarkdown, setChangelogMarkdown] = useState("");
   const [language, setLanguage] = useState(localStorage.getItem(languageStorageKey) ?? "hr");
   const [query, setQuery] = useState("");
   const [recipeScope, setRecipeScope] = useState<RecipeScope>("all");
@@ -602,7 +650,9 @@ export function App() {
   }, [token]);
 
   useEffect(() => {
-    void loadRecipes();
+    if (route.name === "list" || route.name === "management") {
+      void loadRecipes();
+    }
   }, [token, query, recipeScope, includeHidden, managementMode, route, language]);
 
   useEffect(() => {
@@ -632,6 +682,21 @@ export function App() {
       navigate("/recipes");
     }
   }, [route, token, language, user, isModerator]);
+
+  useEffect(() => {
+    if (route.name !== "changelog" || changelogMarkdown) {
+      return;
+    }
+    void fetch("/changelog.md")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Changelog nije dostupan.");
+        }
+        return response.text();
+      })
+      .then(setChangelogMarkdown)
+      .catch((error) => setAppError((error as Error).message));
+  }, [route, changelogMarkdown]);
 
   useEffect(() => {
     if (route.name === "edit" && recipeDetail) {
@@ -1064,7 +1129,9 @@ export function App() {
                       ? "Profil i podaci"
                       : route.name === "management"
                         ? "Upravljanje"
-                        : "Novi i najzanimljiviji recepti"}
+                        : route.name === "changelog"
+                          ? "Changelog"
+                          : "Novi i najzanimljiviji recepti"}
             </h1>
           </div>
 
@@ -1425,7 +1492,7 @@ export function App() {
                         class={`like-button ${recipeDetail.user_liked ? "active" : ""}`}
                         onClick={toggleRecipeLike}
                       >
-                        ♥ {recipeDetail.user_liked ? "Sviđa mi se" : "Like"}
+                        ♥ Sviđa mi se
                       </button>
                       <div class="rating-picker" aria-label="Ocijeni recept">
                         {Array.from({ length: 5 }, (_, index) => {
@@ -1696,16 +1763,19 @@ export function App() {
           </section>
         ) : null}
 
+        {route.name === "changelog" ? (
+          <section class="changelog-view panel">
+            {changelogMarkdown ? renderMarkdown(changelogMarkdown) : <p>Učitavam changelog...</p>}
+          </section>
+        ) : null}
+
         <footer class="app-footer panel">
           <div>
             <strong>LetsCook v{appVersion}</strong>
-            <span class="muted"> Changelog za korisnike</span>
+            <a class="footer-link" href="#/changelog" target="_blank" rel="noreferrer">
+              Changelog za korisnike
+            </a>
           </div>
-          <ul>
-            {changelog.map((entry) => (
-              <li key={entry}>{entry}</li>
-            ))}
-          </ul>
         </footer>
       </div>
     </main>
