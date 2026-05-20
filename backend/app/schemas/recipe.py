@@ -22,7 +22,8 @@ class RecipeFormOptions(BaseModel):
 
 
 class RecipeIngredientInput(BaseModel):
-    ingredient_id: int
+    ingredient_id: int | None = None
+    ingredient_name: str | None = None
     amount: float | None = None
     unit: str | None = None
     note: str | None = None

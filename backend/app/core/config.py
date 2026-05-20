@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", ".env.local"),
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     app_name: str = "LetsCook"
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     backend_cors_origins: str = Field(default="http://localhost:5173")
     jwt_secret_key: str = "change-me-before-production"
     jwt_algorithm: str = "HS256"
-    access_token_minutes: int = 15
+    access_token_minutes: int = 60
     refresh_token_days: int = 30
     media_root: str = "../var/media"
 

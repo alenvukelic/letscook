@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_session
 from app.models import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserSummary
+from app.schemas.auth import LoginRequest, PasswordChangeRequest, ProfileUpdateRequest, TokenResponse, UserSummary
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/auth")
@@ -38,7 +40,10 @@ async def login(
     if user.banned:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is banned")
 
-    access_token = create_access_token(str(user.id), {"role": user.role.value})
+    expires_delta = timedelta(days=30) if payload.remember_me else None
+    access_token = create_access_token(
+        str(user.id), {"role": user.role.value}, expires_delta=expires_delta
+    )
     await log_action(
         session,
         code="auth.logged_in",
@@ -53,4 +58,66 @@ async def login(
 
 @router.get("/me", response_model=UserSummary)
 async def me(user: User = Depends(get_current_user)) -> UserSummary:
+    return serialize_user(user)
+
+
+@router.put("/me", response_model=UserSummary)
+async def update_me(
+    payload: ProfileUpdateRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> UserSummary:
+    email = payload.email.strip().lower()
+    display_name = payload.display_name.strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is not valid")
+    if not display_name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Display name is required")
+
+    existing = await session.scalar(select(User).where(User.email == email, User.id != user.id))
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email is already in use")
+
+    before = {"email": user.email, "display_name": user.display_name}
+    user.email = email
+    user.display_name = display_name
+    await log_action(
+        session,
+        code="user.profile_updated",
+        actor_user_id=user.id,
+        target_user_id=user.id,
+        request=request,
+        extra={"before": before, "after": {"email": email, "display_name": display_name}},
+    )
+    await session.commit()
+    await session.refresh(user)
+    return serialize_user(user)
+
+
+@router.put("/me/password", response_model=UserSummary)
+async def change_password(
+    payload: PasswordChangeRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> UserSummary:
+    if user.password_hash is None or not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is not valid")
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters",
+        )
+
+    user.password_hash = hash_password(payload.new_password)
+    await log_action(
+        session,
+        code="user.password_changed",
+        actor_user_id=user.id,
+        target_user_id=user.id,
+        request=request,
+        extra={},
+    )
+    await session.commit()
     return serialize_user(user)

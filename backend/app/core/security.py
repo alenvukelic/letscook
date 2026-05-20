@@ -15,8 +15,13 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
-def create_access_token(subject: str, extra_claims: dict[str, Any] | None = None) -> str:
-    expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_minutes)
+def create_access_token(
+    subject: str,
+    extra_claims: dict[str, Any] | None = None,
+    *,
+    expires_delta: timedelta | None = None,
+) -> str:
+    expires_at = datetime.now(UTC) + (expires_delta or timedelta(minutes=settings.access_token_minutes))
     payload: dict[str, Any] = {"sub": subject, "exp": expires_at, "type": "access"}
     if extra_claims:
         payload.update(extra_claims)

@@ -1,14 +1,18 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 
 const apiBaseUrl =
   window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000/api"
     : "/api";
 const tokenStorageKey = "letscook.accessToken";
+const tokenSessionKey = "letscook.sessionAccessToken";
+const languageStorageKey = "letscook.language";
+const appVersion = "0.2.0";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
 type AuthPanelMode = "login" | "register";
+type ProfilePanelMode = "profile" | "password";
 
 type User = {
   id: number;
@@ -81,7 +85,8 @@ type RecipeFormOptions = {
 };
 
 type RecipeFormIngredient = {
-  ingredient_id: number;
+  ingredient_id: number | null;
+  ingredient_name: string;
   amount: string;
   unit: string;
   note: string;
@@ -101,10 +106,12 @@ type Route =
   | { name: "list" }
   | { name: "detail"; recipeId: number }
   | { name: "new" }
-  | { name: "edit"; recipeId: number };
+  | { name: "edit"; recipeId: number }
+  | { name: "profile" };
 
 const emptyIngredientRow = (): RecipeFormIngredient => ({
-  ingredient_id: 0,
+  ingredient_id: null,
+  ingredient_name: "",
   amount: "",
   unit: "",
   note: "",
@@ -121,15 +128,49 @@ const emptyRecipeForm = (): RecipeFormState => ({
 });
 
 const navItems = [
-  { label: "Recepti", icon: "R", path: "/recipes" },
+  { label: "Svi recepti", icon: "R", path: "/recipes" },
   { label: "Novi recept", icon: "+", path: "/recipes/new" },
   { label: "Omiljeni", icon: "O", action: "favorites" },
   { label: "Moji recepti", icon: "M", action: "mine" },
 ];
 
+const languages = [
+  { code: "hr", label: "HR" },
+  { code: "en", label: "EN" },
+  { code: "de", label: "DE" },
+];
+
+const changelog = [
+  "Uređen je pregled recepata s jasnijim karticama i listom.",
+  "Dodani su bolji korisnički izbornik, profil i duže trajanje prijave.",
+  "Editor recepta je kompaktniji i više ne traži unos HTML-a.",
+];
+
+class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function getStoredToken(): string | null {
+  return localStorage.getItem(tokenStorageKey) ?? sessionStorage.getItem(tokenSessionKey);
+}
+
+function clearStoredToken() {
+  localStorage.removeItem(tokenStorageKey);
+  sessionStorage.removeItem(tokenSessionKey);
+}
+
 function parseRoute(): Route {
   const hash = window.location.hash.replace(/^#/, "") || "/recipes";
   const parts = hash.split("/").filter(Boolean);
+
+  if (parts[0] === "profile") {
+    return { name: "profile" };
+  }
 
   if (parts[0] !== "recipes") {
     return { name: "list" };
@@ -171,7 +212,7 @@ async function apiRequest<T>(
   const response = await fetch(`${apiBaseUrl}${path}`, { ...init, headers });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(payload?.detail ?? `Request failed with ${response.status}`);
+    throw new ApiError(payload?.detail ?? `Request failed with ${response.status}`, response.status);
   }
   return (await response.json()) as T;
 }
@@ -187,6 +228,7 @@ function formFromRecipe(recipe: RecipeDetail): RecipeFormState {
     ingredients: recipe.ingredients.length
       ? recipe.ingredients.map((ingredient) => ({
           ingredient_id: ingredient.ingredient_id,
+          ingredient_name: ingredient.ingredient_name,
           amount: ingredient.amount == null ? "" : String(ingredient.amount),
           unit: ingredient.unit ?? "",
           note: ingredient.note ?? "",
@@ -206,19 +248,164 @@ function usernameFromUser(user: User | null): string {
   return user.email.split("@", 1)[0];
 }
 
+function getPrepMinutes(recipe: { id: number }): number {
+  return 5 + (recipe.id % 4) * 5;
+}
+
+function getLikesCount(recipe: { id: number }): number {
+  return recipe.id % 17;
+}
+
+function getRating(recipe: { id: number }): number {
+  return 3 + (recipe.id % 3);
+}
+
+function formatServing(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toLocaleString("hr-HR");
+}
+
+function RecipeMetaStrip({ recipe, className = "" }: { recipe: RecipeListItem; className?: string }) {
+  return (
+    <div class={`recipe-facts ${className}`.trim()} aria-label="Glavne informacije recepta">
+      <span title="Za koliko osoba">🍴 {formatServing(recipe.servings)} osoba</span>
+      <span title="Vrijeme pripreme">◷ {getPrepMinutes(recipe)} minuta</span>
+      <span title="Sviđanja">♥ {getLikesCount(recipe)}</span>
+      <span title="Kompleksnost" class="fact-complexity">
+        {Array.from({ length: 5 }, (_, index) => (
+          <span key={index} class={index < recipe.author_complexity ? "filled" : ""}>●</span>
+        ))}
+      </span>
+      <span title="Ocjena" class="fact-rating">
+        {Array.from({ length: 5 }, (_, index) => (
+          <span key={index} class={index < getRating(recipe) ? "filled" : ""}>★</span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+function ComplexityPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const numericValue = Number(value) || 1;
+  return (
+    <div class="complexity-picker" role="group" aria-label="Kompleksnost">
+      {Array.from({ length: 5 }, (_, index) => {
+        const nextValue = index + 1;
+        return (
+          <button
+            key={nextValue}
+            type="button"
+            class={nextValue <= numericValue ? "selected" : ""}
+            onClick={() => onChange(String(nextValue))}
+            aria-label={`Kompleksnost ${nextValue}`}
+          >
+            ●
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RichTextEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value;
+    }
+  }, [value]);
+
+  function runCommand(command: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false);
+    onChange(editorRef.current?.innerHTML ?? "");
+  }
+
+  return (
+    <div class="wysiwyg-wrap">
+      <div class="wysiwyg-toolbar" aria-label="Alati za uređivanje teksta">
+        <button type="button" onClick={() => runCommand("bold")}>Bold</button>
+        <button type="button" onClick={() => runCommand("italic")}>Italic</button>
+        <button type="button" onClick={() => runCommand("insertOrderedList")}>1. lista</button>
+        <button type="button" onClick={() => runCommand("insertUnorderedList")}>Lista</button>
+      </div>
+      <div
+        ref={editorRef}
+        class="wysiwyg-editor"
+        contentEditable
+        onInput={(event) => onChange((event.currentTarget as HTMLDivElement).innerHTML)}
+      />
+    </div>
+  );
+}
+
+function IngredientAutocomplete({
+  ingredient,
+  options,
+  onChange,
+}: {
+  ingredient: RecipeFormIngredient;
+  options: IngredientOption[];
+  onChange: (patch: Partial<RecipeFormIngredient>) => void;
+}) {
+  const query = ingredient.ingredient_name.trim().toLocaleLowerCase("hr-HR");
+  const matches = query
+    ? options
+        .filter((option) => option.name.toLocaleLowerCase("hr-HR").includes(query))
+        .slice(0, 8)
+    : [];
+  const selectedName = ingredient.ingredient_id
+    ? options.find((option) => option.id === ingredient.ingredient_id)?.name
+    : null;
+
+  return (
+    <div class="ingredient-autocomplete">
+      <input
+        placeholder="Upiši sastojak"
+        value={ingredient.ingredient_name}
+        onInput={(event) =>
+          onChange({ ingredient_id: null, ingredient_name: (event.currentTarget as HTMLInputElement).value })
+        }
+      />
+      {selectedName ? <span class="selected-ingredient">Odabrano: {selectedName}</span> : null}
+      {matches.length ? (
+        <div class="ingredient-suggestions">
+          {matches.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onChange({ ingredient_id: option.id, ingredient_name: option.name })}
+            >
+              {option.name}
+            </button>
+          ))}
+          {matches.every((option) => option.name.toLocaleLowerCase("hr-HR") !== query) ? (
+            <span class="new-ingredient-note">Spremanjem će se dodati novi sastojak ako ga ne odabereš.</span>
+          ) : null}
+        </div>
+      ) : query ? (
+        <span class="new-ingredient-note">Novi sastojak: {ingredient.ingredient_name}</span>
+      ) : null}
+    </div>
+  );
+}
+
 export function App() {
   const [route, setRoute] = useState<Route>(parseRoute());
-  const [token, setToken] = useState<string | null>(localStorage.getItem(tokenStorageKey));
+  const [token, setToken] = useState<string | null>(getStoredToken());
   const [user, setUser] = useState<User | null>(null);
   const [options, setOptions] = useState<RecipeFormOptions>({ categories: [], ingredients: [] });
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
+  const [language, setLanguage] = useState(localStorage.getItem(languageStorageKey) ?? "hr");
   const [query, setQuery] = useState("");
   const [mineOnly, setMineOnly] = useState(false);
   const [includeHidden, setIncludeHidden] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPanelMode, setAuthPanelMode] = useState<AuthPanelMode>("login");
+  const [profilePanelMode, setProfilePanelMode] = useState<ProfilePanelMode>("profile");
+  const [headerCompact, setHeaderCompact] = useState(false);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -226,9 +413,14 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [loginEmail, setLoginEmail] = useState("durdica.vukelic@gmail.com");
   const [loginPassword, setLoginPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerDisplayName, setRegisterDisplayName] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileDisplayName, setProfileDisplayName] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [formState, setFormState] = useState<RecipeFormState>(emptyRecipeForm());
 
   const isModerator =
@@ -242,38 +434,52 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const onScroll = () => setHeaderCompact(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(languageStorageKey, language);
+    setFormState((current) => ({ ...current, language }));
+    void apiRequest<RecipeFormOptions>(`/recipes/options?language=${language}`)
+      .then(setOptions)
+      .catch((error: Error) => setAppError(error.message));
+  }, [language]);
+
+  useEffect(() => {
     if (!window.location.hash) {
       navigate("/recipes");
     }
   }, []);
 
   useEffect(() => {
-    void apiRequest<RecipeFormOptions>("/recipes/options?language=hr")
-      .then(setOptions)
-      .catch((error: Error) => setAppError(error.message));
-  }, []);
-
-  useEffect(() => {
     if (!token) {
       setUser(null);
-      localStorage.removeItem(tokenStorageKey);
+      clearStoredToken();
       return;
     }
 
-    localStorage.setItem(tokenStorageKey, token);
     void apiRequest<User>("/auth/me", {}, token)
-      .then(setUser)
+      .then((loadedUser) => {
+        setUser(loadedUser);
+        setProfileEmail(loadedUser.email);
+        setProfileDisplayName(loadedUser.display_name);
+      })
       .catch(() => {
-        localStorage.removeItem(tokenStorageKey);
+        clearStoredToken();
         setToken(null);
         setUser(null);
+        setProfileOpen(true);
+        setAuthPanelMode("login");
         setNotice("Sesija je istekla. Prijavi se ponovno.");
       });
   }, [token]);
 
   useEffect(() => {
     void loadRecipes();
-  }, [token, query, mineOnly, includeHidden]);
+  }, [token, query, mineOnly, includeHidden, language]);
 
   useEffect(() => {
     if (route.name === "detail" || route.name === "edit") {
@@ -282,9 +488,18 @@ export function App() {
     }
     setRecipeDetail(null);
     if (route.name === "new") {
-      setFormState(emptyRecipeForm());
+      if (!token) {
+        requireAuth("Za dodavanje recepta prijavi se u aplikaciju.");
+        navigate("/recipes");
+        return;
+      }
+      setFormState({ ...emptyRecipeForm(), language });
     }
-  }, [route, token]);
+    if (route.name === "profile" && !token) {
+      requireAuth("Za uređivanje profila prijavi se u aplikaciju.");
+      navigate("/recipes");
+    }
+  }, [route, token, language]);
 
   useEffect(() => {
     if (route.name === "edit" && recipeDetail) {
@@ -310,7 +525,13 @@ export function App() {
       const list = await apiRequest<RecipeListItem[]>(`/recipes?${params.toString()}`, {}, token);
       setRecipes(list);
     } catch (error) {
-      setAppError((error as Error).message);
+      if (error instanceof ApiError && error.status === 401) {
+        setMineOnly(false);
+        setIncludeHidden(false);
+        requireAuth("Sesija je istekla. Prijavi se ponovno.");
+      } else {
+        setAppError((error as Error).message);
+      }
     } finally {
       setLoadingRecipes(false);
     }
@@ -320,10 +541,14 @@ export function App() {
     setLoadingDetail(true);
     setAppError(null);
     try {
-      const detail = await apiRequest<RecipeDetail>(`/recipes/${recipeId}?language=hr`, {}, token);
+      const detail = await apiRequest<RecipeDetail>(`/recipes/${recipeId}?language=${language}`, {}, token);
       setRecipeDetail(detail);
     } catch (error) {
-      setAppError((error as Error).message);
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno.");
+      } else {
+        setAppError((error as Error).message);
+      }
     } finally {
       setLoadingDetail(false);
     }
@@ -337,10 +562,18 @@ export function App() {
     try {
       const response = await apiRequest<{ access_token: string; user: User }>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword, remember_me: rememberMe }),
       });
+      clearStoredToken();
+      if (rememberMe) {
+        localStorage.setItem(tokenStorageKey, response.access_token);
+      } else {
+        sessionStorage.setItem(tokenSessionKey, response.access_token);
+      }
       setToken(response.access_token);
       setUser(response.user);
+      setProfileEmail(response.user.email);
+      setProfileDisplayName(response.user.display_name);
       setLoginPassword("");
       setProfileOpen(false);
       setNotice(`Prijavljen si kao ${usernameFromUser(response.user)}.`);
@@ -357,7 +590,7 @@ export function App() {
   }
 
   function handleLogout() {
-    localStorage.removeItem(tokenStorageKey);
+    clearStoredToken();
     setToken(null);
     setUser(null);
     setProfileOpen(false);
@@ -370,18 +603,104 @@ export function App() {
   function handleUserMenu(action: string) {
     setProfileOpen(false);
     if (action === "mine") {
+      if (!requireAuth("Za pregled svojih recepata prijavi se u aplikaciju.")) {
+        return;
+      }
       setMineOnly(true);
       navigate("/recipes");
       return;
     }
     if (action === "favorites") {
+      if (!requireAuth("Za omiljene recepte prijavi se u aplikaciju.")) {
+        return;
+      }
       setNotice("Omiljeni recepti dolaze u idućem koraku.");
       navigate("/recipes");
       return;
     }
     if (action === "profile") {
-      setNotice("Uređivanje profila i promjena lozinke dolaze u idućem koraku.");
+      if (!requireAuth("Za uređivanje profila prijavi se u aplikaciju.")) {
+        return;
+      }
+      setProfilePanelMode("profile");
+      navigate("/profile");
       return;
+    }
+    if (action === "password") {
+      if (!requireAuth("Za promjenu lozinke prijavi se u aplikaciju.")) {
+        return;
+      }
+      setProfilePanelMode("password");
+      navigate("/profile");
+    }
+  }
+
+  function requireAuth(message: string): boolean {
+    if (token) {
+      return true;
+    }
+    clearStoredToken();
+    setToken(null);
+    setUser(null);
+    setAuthPanelMode("login");
+    setProfileOpen(true);
+    setNotice(message);
+    return false;
+  }
+
+  async function saveProfile(event: Event) {
+    event.preventDefault();
+    if (!requireAuth("Sesija je istekla. Prijavi se ponovno za uređivanje profila.")) {
+      return;
+    }
+    setSaving(true);
+    setAppError(null);
+    try {
+      const updated = await apiRequest<User>(
+        "/auth/me",
+        { method: "PUT", body: JSON.stringify({ email: profileEmail, display_name: profileDisplayName }) },
+        token,
+      );
+      setUser(updated);
+      setNotice("Profil je spremljen.");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno za uređivanje profila.");
+      } else {
+        setAppError((error as Error).message);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePassword(event: Event) {
+    event.preventDefault();
+    if (!requireAuth("Sesija je istekla. Prijavi se ponovno za promjenu lozinke.")) {
+      return;
+    }
+    setSaving(true);
+    setAppError(null);
+    try {
+      await apiRequest<User>(
+        "/auth/me/password",
+        {
+          method: "PUT",
+          body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+        },
+        token,
+      );
+      setCurrentPassword("");
+      setNewPassword("");
+      setNotice("Lozinka je promijenjena.");
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno za promjenu lozinke.");
+      } else {
+        setAppError((error as Error).message);
+      }
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -413,8 +732,7 @@ export function App() {
 
   async function saveRecipe(event: Event) {
     event.preventDefault();
-    if (!token) {
-      setAppError("Prijava je obavezna za spremanje recepta.");
+    if (!requireAuth("Prijava je obavezna za spremanje recepta.")) {
       return;
     }
 
@@ -424,14 +742,15 @@ export function App() {
     const payload = {
       title: formState.title,
       category_id: formState.category_id ? Number(formState.category_id) : null,
-      language: formState.language,
+      language,
       steps_html: formState.steps_html,
       servings: Number(formState.servings),
       author_complexity: Number(formState.author_complexity),
       ingredients: formState.ingredients
-        .filter((ingredient) => ingredient.ingredient_id > 0)
+        .filter((ingredient) => ingredient.ingredient_id || ingredient.ingredient_name.trim())
         .map((ingredient) => ({
           ingredient_id: ingredient.ingredient_id,
+          ingredient_name: ingredient.ingredient_name.trim() || null,
           amount: ingredient.amount ? Number(ingredient.amount) : null,
           unit: ingredient.unit || null,
           note: ingredient.note || null,
@@ -451,7 +770,11 @@ export function App() {
       await loadRecipes();
       navigate(`/recipes/${saved.id}`);
     } catch (error) {
-      setAppError((error as Error).message);
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno prije spremanja.");
+      } else {
+        setAppError((error as Error).message);
+      }
     } finally {
       setSaving(false);
     }
@@ -505,7 +828,7 @@ export function App() {
       </aside>
 
       <div class="page-shell">
-        <header class="page-header">
+        <header class={`page-header ${headerCompact ? "compact-header" : ""}`}>
           <div>
             <p class="eyebrow">LetsCook</p>
             <h1 class="page-title">
@@ -515,7 +838,9 @@ export function App() {
                   ? "Uredi recept"
                   : route.name === "new"
                     ? "Dodaj novi recept"
-                    : "Novi i najzanimljiviji recepti"}
+                    : route.name === "profile"
+                      ? "Profil i podaci"
+                      : "Novi i najzanimljiviji recepti"}
             </h1>
           </div>
 
@@ -531,21 +856,35 @@ export function App() {
                   />
                   <button
                     type="button"
-                    class={`toggle-chip ${viewMode === "tiles" ? "active" : ""}`}
+                    class={`toggle-chip icon-toggle ${viewMode === "tiles" ? "active" : ""}`}
                     onClick={() => setViewMode("tiles")}
+                    aria-label="Prikaz kartica"
                   >
-                    Tile
+                    ▦
                   </button>
                   <button
                     type="button"
-                    class={`toggle-chip ${viewMode === "list" ? "active" : ""}`}
+                    class={`toggle-chip icon-toggle ${viewMode === "list" ? "active" : ""}`}
                     onClick={() => setViewMode("list")}
+                    aria-label="Prikaz liste"
                   >
-                    Lista
+                    ☰
                   </button>
                 </>
               ) : null}
             </div>
+
+            <label class="language-picker" aria-label="Jezik aplikacije">
+              <span>Jezik</span>
+              <select
+                value={language}
+                onChange={(event) => setLanguage((event.currentTarget as HTMLSelectElement).value)}
+              >
+                {languages.map((item) => (
+                  <option key={item.code} value={item.code}>{item.label}</option>
+                ))}
+              </select>
+            </label>
 
             <div class="profile-area">
               <button
@@ -583,6 +922,7 @@ export function App() {
                           <label>
                             Email
                             <input
+                              type="email"
                               value={loginEmail}
                               onInput={(event) =>
                                 setLoginEmail((event.currentTarget as HTMLInputElement).value)
@@ -599,8 +939,18 @@ export function App() {
                               }
                             />
                           </label>
+                          <label class="inline-check remember-check">
+                            <input
+                              type="checkbox"
+                              checked={rememberMe}
+                              onChange={(event) =>
+                                setRememberMe((event.currentTarget as HTMLInputElement).checked)
+                              }
+                            />
+                            <span>Zapamti me</span>
+                          </label>
                           <button type="submit" class="primary">
-                            Sign in
+                            Prijava
                           </button>
                         </form>
                       ) : (
@@ -649,7 +999,7 @@ export function App() {
                         <span class="muted">{user.role}</span>
                       </div>
                       <button type="button" class="menu-link" onClick={() => handleUserMenu("profile")}>Profil i podaci</button>
-                      <button type="button" class="menu-link" onClick={() => handleUserMenu("profile")}>Promjena lozinke</button>
+                      <button type="button" class="menu-link" onClick={() => handleUserMenu("password")}>Promjena lozinke</button>
                       <button type="button" class="menu-link" onClick={() => handleUserMenu("favorites")}>Omiljeni recepti</button>
                       <button type="button" class="menu-link" onClick={() => handleUserMenu("mine")}>Moji recepti</button>
                       <button type="button" class="menu-link" onClick={() => navigate("/recipes/new")}>Dodaj recept</button>
@@ -711,9 +1061,7 @@ export function App() {
                         </div>
                         <h3>{recipe.title}</h3>
                         <p class="muted">@{recipe.author_username}</p>
-                        <p class="muted">
-                          {recipe.servings} porcija · kompleksnost {recipe.author_complexity}/5
-                        </p>
+                        <RecipeMetaStrip recipe={recipe} />
                       </div>
                     </button>
                   </article>
@@ -754,9 +1102,8 @@ export function App() {
                     <div class="meta-strip">
                       <span>@{recipeDetail.author_username}</span>
                       <span>{recipeDetail.category_name ?? "Bez kategorije"}</span>
-                      <span>{recipeDetail.servings} porcija</span>
-                      <span>Kompleksnost {recipeDetail.author_complexity}/5</span>
                     </div>
+                    <RecipeMetaStrip recipe={recipeDetail} className="detail-facts" />
                   </div>
 
                   {recipeDetail.media.length ? (
@@ -802,6 +1149,72 @@ export function App() {
           </section>
         ) : null}
 
+        {route.name === "profile" ? (
+          <section class="profile-page panel">
+            <div class="popover-switcher profile-tabs">
+              <button
+                type="button"
+                class={`toggle-chip ${profilePanelMode === "profile" ? "active" : ""}`}
+                onClick={() => setProfilePanelMode("profile")}
+              >
+                Profil i podaci
+              </button>
+              <button
+                type="button"
+                class={`toggle-chip ${profilePanelMode === "password" ? "active" : ""}`}
+                onClick={() => setProfilePanelMode("password")}
+              >
+                Promjena lozinke
+              </button>
+            </div>
+
+            {profilePanelMode === "profile" ? (
+              <form class="profile-form" onSubmit={saveProfile}>
+                <label>
+                  Korisničko ime
+                  <input
+                    value={profileDisplayName}
+                    onInput={(event) => setProfileDisplayName((event.currentTarget as HTMLInputElement).value)}
+                  />
+                </label>
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={profileEmail}
+                    onInput={(event) => setProfileEmail((event.currentTarget as HTMLInputElement).value)}
+                  />
+                </label>
+                <button type="submit" class="primary" disabled={saving}>
+                  {saving ? "Spremam..." : "Spremi profil"}
+                </button>
+              </form>
+            ) : (
+              <form class="profile-form" onSubmit={savePassword}>
+                <label>
+                  Trenutna lozinka
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onInput={(event) => setCurrentPassword((event.currentTarget as HTMLInputElement).value)}
+                  />
+                </label>
+                <label>
+                  Nova lozinka
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onInput={(event) => setNewPassword((event.currentTarget as HTMLInputElement).value)}
+                  />
+                </label>
+                <button type="submit" class="primary" disabled={saving}>
+                  {saving ? "Spremam..." : "Spremi lozinku"}
+                </button>
+              </form>
+            )}
+          </section>
+        ) : null}
+
         {(route.name === "new" || route.name === "edit") ? (
           <section class="editor-layout">
             <form class="panel editor-page" onSubmit={saveRecipe}>
@@ -816,14 +1229,14 @@ export function App() {
                   Natrag
                 </button>
                 <button type="submit" class="primary" disabled={saving}>
-                  {saving ? "Spremam..." : route.name === "edit" ? "Spremi izmjene" : "Kreiraj recept"}
+                  {saving ? "Spremam..." : "SPREMI"}
                 </button>
               </div>
 
               <p class="eyebrow">Editor</p>
               <h2>{route.name === "edit" ? "Uredi recept" : "Novi recept"}</h2>
 
-              <div class="grid two-columns">
+              <div class="grid compact-editor-grid">
                 <label>
                   Naslov
                   <input
@@ -856,22 +1269,6 @@ export function App() {
                   </select>
                 </label>
                 <label>
-                  Jezik
-                  <select
-                    value={formState.language}
-                    onChange={(event) =>
-                      setFormState({
-                        ...formState,
-                        language: (event.currentTarget as HTMLSelectElement).value,
-                      })
-                    }
-                  >
-                    <option value="hr">Hrvatski</option>
-                    <option value="en">English</option>
-                    <option value="de">Deutsch</option>
-                  </select>
-                </label>
-                <label>
                   Porcije
                   <input
                     type="number"
@@ -888,32 +1285,18 @@ export function App() {
                 </label>
                 <label>
                   Kompleksnost
-                  <input
-                    type="number"
-                    min="1"
-                    max="5"
+                  <ComplexityPicker
                     value={formState.author_complexity}
-                    onInput={(event) =>
-                      setFormState({
-                        ...formState,
-                        author_complexity: (event.currentTarget as HTMLInputElement).value,
-                      })
-                    }
+                    onChange={(author_complexity) => setFormState({ ...formState, author_complexity })}
                   />
                 </label>
               </div>
 
               <label>
                 Postupak
-                <textarea
-                  rows={12}
+                <RichTextEditor
                   value={formState.steps_html}
-                  onInput={(event) =>
-                    setFormState({
-                      ...formState,
-                      steps_html: (event.currentTarget as HTMLTextAreaElement).value,
-                    })
-                  }
+                  onChange={(steps_html) => setFormState({ ...formState, steps_html })}
                 />
               </label>
 
@@ -927,21 +1310,11 @@ export function App() {
                 <div class="editor-ingredient-table">
                   {formState.ingredients.map((ingredient, index) => (
                     <div key={`${index}-${ingredient.ingredient_id}`} class="ingredient-editor-row">
-                      <select
-                        value={ingredient.ingredient_id}
-                        onChange={(event) =>
-                          updateIngredientRow(index, {
-                            ingredient_id: Number((event.currentTarget as HTMLSelectElement).value),
-                          })
-                        }
-                      >
-                        <option value="0">Odaberi sastojak</option>
-                        {options.ingredients.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.name}
-                          </option>
-                        ))}
-                      </select>
+                      <IngredientAutocomplete
+                        ingredient={ingredient}
+                        options={options.ingredients}
+                        onChange={(patch) => updateIngredientRow(index, patch)}
+                      />
                       <input
                         placeholder="Količina"
                         value={ingredient.amount}
@@ -979,6 +1352,18 @@ export function App() {
             </form>
           </section>
         ) : null}
+
+        <footer class="app-footer panel">
+          <div>
+            <strong>LetsCook v{appVersion}</strong>
+            <span class="muted"> Changelog za korisnike</span>
+          </div>
+          <ul>
+            {changelog.map((entry) => (
+              <li key={entry}>{entry}</li>
+            ))}
+          </ul>
+        </footer>
       </div>
     </main>
   );

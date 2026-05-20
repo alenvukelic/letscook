@@ -8,6 +8,17 @@ from app.models import UserRole
 class LoginRequest(BaseModel):
     email: str
     password: str
+    remember_me: bool = False
+
+
+class ProfileUpdateRequest(BaseModel):
+    email: str
+    display_name: str
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class UserSummary(BaseModel):

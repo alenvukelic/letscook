@@ -112,6 +112,31 @@ async def ensure_ingredients_exist(session: AsyncSession, ingredient_ids: list[i
         )
 
 
+async def resolve_ingredient_id(session: AsyncSession, row: object, language: str) -> int | None:
+    ingredient_id = getattr(row, "ingredient_id", None)
+    if ingredient_id:
+        return ingredient_id
+
+    ingredient_name = (getattr(row, "ingredient_name", None) or "").strip()
+    if not ingredient_name:
+        return None
+
+    normalized = ingredient_name.lower()
+    existing = await session.scalar(
+        select(Ingredient).where(func.lower(Ingredient.canonical_name) == normalized)
+    )
+    if existing is not None:
+        return existing.id
+
+    ingredient = Ingredient(canonical_name=ingredient_name)
+    session.add(ingredient)
+    await session.flush()
+    session.add(
+        IngredientTranslation(ingredient_id=ingredient.id, language=language, name=ingredient_name)
+    )
+    return ingredient.id
+
+
 async def replace_recipe_ingredients(
     session: AsyncSession,
     recipe_id: int,
@@ -119,10 +144,13 @@ async def replace_recipe_ingredients(
 ) -> None:
     await session.execute(delete(RecipeIngredient).where(RecipeIngredient.recipe_id == recipe_id))
     for sort_order, row in enumerate(payload.ingredients, start=1):
+        ingredient_id = await resolve_ingredient_id(session, row, payload.language.lower())
+        if ingredient_id is None:
+            continue
         session.add(
             RecipeIngredient(
                 recipe_id=recipe_id,
-                ingredient_id=row.ingredient_id,
+                ingredient_id=ingredient_id,
                 amount=row.amount,
                 unit=row.unit,
                 note=row.note,
@@ -374,7 +402,9 @@ async def create_recipe(
     session: AsyncSession = Depends(get_session),
 ) -> RecipeDetail:
     await ensure_category_exists(session, payload.category_id)
-    await ensure_ingredients_exist(session, [row.ingredient_id for row in payload.ingredients])
+    await ensure_ingredients_exist(
+        session, [row.ingredient_id for row in payload.ingredients if row.ingredient_id]
+    )
 
     recipe = Recipe(
         author_id=current_user.id,
@@ -427,7 +457,9 @@ async def update_recipe(
         )
 
     await ensure_category_exists(session, payload.category_id)
-    await ensure_ingredients_exist(session, [row.ingredient_id for row in payload.ingredients])
+    await ensure_ingredients_exist(
+        session, [row.ingredient_id for row in payload.ingredients if row.ingredient_id]
+    )
 
     recipe.title = payload.title.strip()
     recipe.category_id = payload.category_id

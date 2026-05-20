@@ -1,8 +1,8 @@
 # AGENTS.md
 
 ## Current State
-- The repository now contains an initial scaffold: PostgreSQL schema script under `db/`, FastAPI backend under `backend/`, Vite + Preact + TypeScript frontend under `frontend/`, repo guidance docs, skill folders, and editable legal docs under `legal/`.
-- Treat this file, `README.md`, `skills_manifest.yaml`, the files under `skills/`, `db/schema.sql`, and the existing legal markdown files as the current repo-specific source of truth while code is still early.
+- The repository now contains an initial scaffold plus a curated PostgreSQL seed/import workflow: schema script and seed helpers under `db/`, FastAPI backend under `backend/`, Vite + Preact + TypeScript frontend under `frontend/`, repo guidance docs, skill folders, and editable legal docs under `legal/`.
+- Treat this file, `README.md`, `skills_manifest.yaml`, the files under `skills/`, `db/schema.sql`, the seed/import helpers under `db/`, and the existing legal markdown files as the current repo-specific source of truth while code is still early.
 
 ## Planned System Direction
 - Product intent: a multilingual cookbook web app for adding, sharing, and searching recipes.
@@ -12,8 +12,10 @@
 - Use the initial product, API, and database notes below as the default starting blueprint unless later code or user instructions override them.
 
 ## Workflow Rules
-- Make local git commits for completed changes unless the user says otherwise.
-- `commit` or `komit` means push work to GitHub. Do not push to GitHub unless the user explicitly says `commit` or `komit`.
+- Until product version `1.0.0`, completed code changes should be committed locally, pushed to GitHub, and deployed to `ubuntu-dev` without waiting for an extra confirmation, unless the user explicitly says not to.
+- `commit` or `komit` still explicitly means push work to GitHub, but the current standing instruction is to push and update `ubuntu-dev` after each completed change batch until `1.0.0`.
+- Use semantic three-part versioning as `major.minor.patch`, for example `0.2.0`, and keep user-visible version/changelog information current in the application footer.
+- Changelog entries shown to regular users should be in Croatian and describe practical product changes in simple language.
 - Keep `AGENTS.md` updated when workflow rules, repository structure, or important constraints change.
 - Keep `README.md` updated with user-facing project description, requirements, setup, and usage notes. Do not put agent workflow instructions in `README.md`.
 - Keep `skills_manifest.yaml` and the files under `skills/` aligned with the planned architecture when responsibilities or boundaries change.
@@ -29,6 +31,8 @@
 - Frontend dev server: `cd frontend; npm run dev`
 - Frontend build: `cd frontend; npm run build`
 - Database schema apply, after local DB access exists: `psql "$DATABASE_URL" -f db/schema.sql`
+- Database seed/import from private Word sources: `python db/seed_initial_data.py`
+- Database seed/import through SSH tunnel: set `SSH_PASSWORD` then run `python db/run_seed_over_ssh.py`
 
 ## Git Remote
 - GitHub repository: `https://github.com/alenvukelic/letscook`
@@ -45,7 +49,7 @@
 - Core product areas from the original notes: recipes, ingredients, ratings, complexity votes, favorites, comments, media, recipe relations, moderation, and localization.
 - User roles are `user`, `moderator`, `administrator`, and `superadmin`.
 - The initial `superadmin` account is `users.id = 1` and should be protected from deletion, banning, or demotion.
-- Recipe creation is expected to support structured ingredients, servings, tags, category, rich-text steps, and optional main image.
+- Recipe creation is expected to support structured ingredients, servings, tags, category, rich-text steps, optional main image, and mixed ingredient rows where a canonical ingredient can also carry free text or a row can be plain explanatory text.
 - The original notes expect both author complexity and community complexity to be stored and displayed.
 - Search is expected to cover title, ingredients, tags, and steps, with ingredient-based matching as an important use case.
 - Recipes may have parent/child relationships to represent variations or clones.
@@ -73,6 +77,7 @@
 
 ## Recipe Workflow Expectations
 - Recipe creation should include title, category, tags, ingredients, amounts and units, rich-text steps, servings, and author complexity.
+- Ingredient entry should support both canonical ingredient selection and free text additions on the same row, for example selecting `eggs` and appending `domaca`, plus standalone text rows for variation-specific notes inside the ingredient section.
 - Main image is optional.
 - Ingredients should support canonical ingredient records plus new entry creation when needed.
 - Backend should run similarity checks during recipe creation and suggest cloning or linking when a close match exists.
@@ -84,14 +89,17 @@
 - Filtering is expected to grow around language, category, complexity, user-owned recipes, favorites, preparation time, ratings, and servings.
 
 ## Data Model Baseline
-- Core tables expected from the initial notes: `users`, `categories`, `tags`, `recipe_tags`, `ingredients`, `ingredient_translations`, `recipes`, `recipe_ingredients`, `ratings`, `complexity_votes`, `favorites`, `comments`, `recipe_relations`, `media`, `views`, `actions`, and `action_log`.
+- Core tables expected from the initial notes: `users`, `categories`, `category_translations`, `tags`, `tag_translations`, `recipe_tags`, `ingredients`, `ingredient_translations`, `recipes`, `recipe_translations`, `recipe_ingredients`, `ratings`, `complexity_votes`, `favorites`, `comments`, `recipe_relations`, `media`, `views`, `actions`, and `action_log`.
 - `users` should support role-aware access for registered users, moderators, administrators, and `SuperAdmin`, plus user ban state.
 - `categories` should define recipe categories used by `recipes`.
+- `category_translations` should carry localized category names by language.
 - `tags` should define reusable recipe tags.
+- `tag_translations` should carry localized tag names by language.
 - `recipe_tags` should link recipes and tags many-to-many.
 - `ingredients` should represent canonical ingredients.
 - `ingredient_translations` should carry localized ingredient names by language.
 - `recipes` should include author, title, category, language, steps HTML, main media reference, servings, `hidden`, `deleted`, `hidden_id`, and `deleted_id`.
+- `recipe_translations` should carry localized recipe titles by language for seeded multilingual content.
 - `recipe_ingredients` should store ingredient quantities and units per recipe.
 - Ratings and complexity votes should be stored per user per recipe rather than only as aggregates.
 - `recipe_relations` should support parent/child or clone-style links between recipes.
