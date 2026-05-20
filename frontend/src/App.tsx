@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import pell from "pell";
+import "pell/dist/pell.min.css";
 
 const apiBaseUrl =
   window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
@@ -7,7 +9,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.2.2";
+const appVersion = "0.2.3";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -18,6 +20,7 @@ type User = {
   id: number;
   email: string;
   display_name: string;
+  avatar_url: string | null;
   role: Role;
 };
 
@@ -150,9 +153,9 @@ const languages = [
 ];
 
 const changelog = [
-  "Editor sastojaka sada stabilno traži dok upisuješ.",
-  "Postupak sada može prikazati slike iz galerije aplikacije.",
-  "Dizajn je osvježen veselijom narančastom bojom.",
+  "Editor postupka je nadograđen i lakše umeće slike recepta.",
+  "Korisnički status i profilna slika su jasnije prikazani.",
+  "Kompleksnost je sada jednako prikazana na karticama i u editoru.",
 ];
 
 class ApiError extends Error {
@@ -268,9 +271,9 @@ function RecipeMetaStrip({ recipe, className = "" }: { recipe: RecipeListItem; c
       <span title="Za koliko osoba">🍴 {formatServing(recipe.servings)} osoba</span>
       <span title="Vrijeme pripreme">◷ {recipe.prep_time_minutes} minuta</span>
       <span title="Sviđanja" class={recipe.user_liked ? "liked-fact" : ""}>♥ {recipe.likes_count}</span>
-      <span title="Kompleksnost" class="fact-complexity">
+      <span title="Kompleksnost" class="fact-complexity complexity-inline">
         {Array.from({ length: 5 }, (_, index) => (
-          <span key={index} class={index < recipe.author_complexity ? "filled" : ""}>🥄</span>
+          <span key={index} class={`spoon-box ${index < recipe.author_complexity ? "filled" : ""}`}>🥄</span>
         ))}
       </span>
       <span title="Ocjena" class="fact-rating">
@@ -305,20 +308,68 @@ function ComplexityPicker({ value, onChange }: { value: string; onChange: (value
   );
 }
 
-function RichTextEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const editorRef = useRef<HTMLDivElement>(null);
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"]/g, (char) => {
+    const entities: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+    return entities[char] ?? char;
+  });
+}
+
+function RichTextEditor({
+  value,
+  media,
+  onChange,
+}: {
+  value: string;
+  media: RecipeMedia[];
+  onChange: (value: string) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<{ content: HTMLElement } | null>(null);
+  const latestValueRef = useRef(value);
 
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== value) {
-      editorRef.current.innerHTML = value;
+    latestValueRef.current = value;
+    if (editorRef.current && editorRef.current.content.innerHTML !== value) {
+      editorRef.current.content.innerHTML = value;
     }
   }, [value]);
 
-  function runCommand(command: string) {
-    editorRef.current?.focus();
-    document.execCommand(command, false);
-    onChange(editorRef.current?.innerHTML ?? "");
-  }
+  useEffect(() => {
+    if (!containerRef.current || editorRef.current) {
+      return;
+    }
+
+    editorRef.current = pell.init({
+      element: containerRef.current,
+      defaultParagraphSeparator: "p",
+      onChange: (html: string) => {
+        latestValueRef.current = html;
+        onChange(html);
+      },
+      actions: [
+        "bold",
+        "italic",
+        "underline",
+        "strikethrough",
+        "heading2",
+        "olist",
+        "ulist",
+        "quote",
+        "line",
+        "link",
+        {
+          name: "image",
+          icon: "Slika",
+          title: "Umetni lokalnu sliku",
+          result: () => insertImageByPrompt(),
+        },
+        "undo",
+        "redo",
+      ],
+    });
+    editorRef.current.content.innerHTML = latestValueRef.current;
+  }, []);
 
   function insertImage() {
     const src = window.prompt("Unesi putanju slike iz aplikacije, npr. /media/seed/slika.jpg");
@@ -329,26 +380,45 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (value: 
       window.alert("Slika mora biti lokalna datoteka iz aplikacije i početi s /media/.");
       return;
     }
-    editorRef.current?.focus();
-    document.execCommand("insertHTML", false, `<p><img src="${src}" alt="Slika recepta"></p>`);
-    onChange(editorRef.current?.innerHTML ?? "");
+    insertImageByUrl(src, "Slika recepta");
+  }
+
+  function insertImageByPrompt() {
+    insertImage();
+  }
+
+  function insertImageByUrl(src: string, alt: string) {
+    if (!src.startsWith("/media/")) {
+      window.alert("Slika mora biti lokalna datoteka iz aplikacije i početi s /media/.");
+      return;
+    }
+    editorRef.current?.content.focus();
+    pell.exec("insertHTML", `<p><img src="${src}" alt="${escapeHtml(alt)}"></p>`);
+    const nextValue = editorRef.current?.content.innerHTML ?? latestValueRef.current;
+    latestValueRef.current = nextValue;
+    onChange(nextValue);
   }
 
   return (
     <div class="wysiwyg-wrap">
-      <div class="wysiwyg-toolbar" aria-label="Alati za uređivanje teksta">
-        <button type="button" onClick={() => runCommand("bold")}>Bold</button>
-        <button type="button" onClick={() => runCommand("italic")}>Italic</button>
-        <button type="button" onClick={() => runCommand("insertOrderedList")}>1. lista</button>
-        <button type="button" onClick={() => runCommand("insertUnorderedList")}>Lista</button>
-        <button type="button" onClick={insertImage}>Slika</button>
-      </div>
-      <div
-        ref={editorRef}
-        class="wysiwyg-editor"
-        contentEditable
-        onInput={(event) => onChange((event.currentTarget as HTMLDivElement).innerHTML)}
-      />
+      <div ref={containerRef} class="pell-host" />
+      {media.length ? (
+        <div class="editor-media-tray">
+          <span>Slike recepta</span>
+          {media.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => insertImageByUrl(item.url, item.original_filename)}
+            >
+              <img src={item.url} alt={item.original_filename} />
+              <span>Umetni</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div class="editor-media-empty">Za umetanje slike prvo koristi lokalnu `/media/` putanju.</div>
+      )}
     </div>
   );
 }
@@ -464,6 +534,7 @@ export function App() {
   const [registerPassword, setRegisterPassword] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
   const [profileDisplayName, setProfileDisplayName] = useState("");
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [formState, setFormState] = useState<RecipeFormState>(emptyRecipeForm());
@@ -511,6 +582,7 @@ export function App() {
         setUser(loadedUser);
         setProfileEmail(loadedUser.email);
         setProfileDisplayName(loadedUser.display_name);
+        setProfileAvatarUrl(loadedUser.avatar_url ?? "");
       })
       .catch(() => {
         clearStoredToken();
@@ -623,6 +695,7 @@ export function App() {
       setUser(response.user);
       setProfileEmail(response.user.email);
       setProfileDisplayName(response.user.display_name);
+      setProfileAvatarUrl(response.user.avatar_url ?? "");
       setLoginPassword("");
       setProfileOpen(false);
       setNotice(`Prijavljen si kao ${usernameFromUser(response.user)}.`);
@@ -710,7 +783,14 @@ export function App() {
     try {
       const updated = await apiRequest<User>(
         "/auth/me",
-        { method: "PUT", body: JSON.stringify({ email: profileEmail, display_name: profileDisplayName }) },
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            email: profileEmail,
+            display_name: profileDisplayName,
+            avatar_url: profileAvatarUrl || null,
+          }),
+        },
         token,
       );
       setUser(updated);
@@ -988,7 +1068,17 @@ export function App() {
                 onClick={() => setProfileOpen((current) => !current)}
                 aria-expanded={profileOpen}
               >
-                <span class="profile-avatar">{usernameFromUser(user).slice(0, 1).toUpperCase()}</span>
+                <span class={`profile-avatar ${user?.avatar_url ? "has-image" : ""}`}>
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.display_name} />
+                  ) : (
+                    usernameFromUser(user).slice(0, 1).toUpperCase()
+                  )}
+                </span>
+                <span class="profile-status">
+                  <strong>{user ? `@${usernameFromUser(user)}` : "Gost"}</strong>
+                  <span>{user ? "Prijavljen" : "Nije prijavljen"}</span>
+                </span>
               </button>
 
               {profileOpen ? (
@@ -1321,6 +1411,20 @@ export function App() {
                     onInput={(event) => setProfileEmail((event.currentTarget as HTMLInputElement).value)}
                   />
                 </label>
+                <label>
+                  Avatar / profilna slika
+                  <input
+                    placeholder="/media/..."
+                    value={profileAvatarUrl}
+                    onInput={(event) => setProfileAvatarUrl((event.currentTarget as HTMLInputElement).value)}
+                  />
+                </label>
+                {profileAvatarUrl ? (
+                  <div class="profile-avatar-preview">
+                    <img src={profileAvatarUrl} alt="Profilna slika" />
+                    <span>Koristi samo lokalne slike iz aplikacije koje počinju s /media/.</span>
+                  </div>
+                ) : null}
                 <button type="submit" class="primary" disabled={saving}>
                   {saving ? "Spremam..." : "Spremi profil"}
                 </button>
@@ -1475,6 +1579,7 @@ export function App() {
                 Postupak
                 <RichTextEditor
                   value={formState.steps_html}
+                  media={route.name === "edit" && recipeDetail ? recipeDetail.media : []}
                   onChange={(steps_html) => setFormState({ ...formState, steps_html })}
                 />
               </label>

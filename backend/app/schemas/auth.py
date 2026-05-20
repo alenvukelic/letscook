@@ -14,6 +14,7 @@ class LoginRequest(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     email: str
     display_name: str
+    avatar_url: str | None = None
 
 
 class PasswordChangeRequest(BaseModel):
@@ -25,6 +26,7 @@ class UserSummary(BaseModel):
     id: int
     email: str
     display_name: str
+    avatar_url: str | None
     role: UserRole
 
 
