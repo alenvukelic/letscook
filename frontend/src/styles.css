@@ -301,7 +301,7 @@ h3 {
 }
 
 .icon-toggle {
-  width: 42px;
+  width: 54px;
   height: 42px;
   display: grid;
   place-items: center;
@@ -310,16 +310,15 @@ h3 {
 }
 
 .language-picker {
-  min-width: 94px;
-  grid-template-columns: auto 74px;
+  min-width: 60px;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   color: #6b5f4e;
-  font-size: 0.82rem;
+  font-size: 1rem;
 }
 
 .language-picker select {
-  padding: 8px 10px;
+  padding: 8px 9px;
   border-radius: 999px;
 }
 
@@ -342,10 +341,9 @@ h3 {
 }
 
 .profile-trigger {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 10px 6px 6px;
+  display: grid;
+  place-items: center;
+  padding: 5px;
   border: 1px solid rgba(238, 111, 47, 0.18);
   border-radius: 999px;
   background: rgba(255, 252, 247, 0.82);
@@ -362,6 +360,15 @@ h3 {
   flex-wrap: wrap;
   justify-content: flex-end;
   min-width: 0;
+  margin-left: auto;
+}
+
+.guest-icon {
+  width: 30px;
+  height: 30px;
+  fill: #777;
+  stroke: #777;
+  stroke-width: 2;
 }
 
 .profile-status span {
@@ -805,13 +812,25 @@ h3 {
 }
 
 .ingredient-chip-row {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: minmax(68px, auto) minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
   padding: 12px 14px;
   border: 1px solid rgba(90, 67, 36, 0.1);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.64);
+}
+
+.ingredient-amount {
+  color: #2d2418;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ingredient-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .user-summary {
@@ -1239,7 +1258,7 @@ h3 {
   }
 
   .header-right {
-    justify-content: flex-start;
+    justify-content: flex-end;
     width: 100%;
   }
 
@@ -1269,6 +1288,10 @@ h3 {
   .managed-user-row,
   .recipe-card-button.list {
     grid-template-columns: 1fr;
+  }
+
+  .ingredient-chip-row {
+    grid-template-columns: minmax(58px, auto) minmax(0, 1fr);
   }
 
   .title-field,

@@ -1,8 +1,8 @@
 {
-  "version": "0.4.1",
+  "version": "0.4.2",
   "changes": [
-    "Popravljeno je dupliciranje slike pri kliku na sliku u editoru postupka.",
-    "Toolbar editora bolje se prelama i tipke više ne izlaze iz svog prostora.",
-    "Editor i zaglavlje se stabilnije prilagođavaju pri smanjivanju prozora."
+    "Aplikacija sada sama osvježava stranicu kada je dostupna nova verzija.",
+    "Gornji desni izbornik je kompaktniji i bolje poravnat.",
+    "Sastojci na receptu prikazuju se preglednije u jednom retku."
   ]
 }

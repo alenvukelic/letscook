@@ -12,7 +12,8 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.4.1";
+const versionReloadStorageKey = "letscook.lastVersionReload";
+const appVersion = "0.4.2";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -165,9 +166,9 @@ const navItems = [
 ];
 
 const languages = [
-  { code: "hr", label: "HR" },
-  { code: "en", label: "EN" },
-  { code: "de", label: "DE" },
+  { code: "hr", label: "🇭🇷" },
+  { code: "en", label: "🇬🇧" },
+  { code: "de", label: "🇩🇪" },
 ];
 
 const roleLabels: Record<Role, string> = {
@@ -298,15 +299,18 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString("hr-HR");
 }
 
-function usernameFromUser(user: User | null): string {
-  if (!user) {
-    return "Gost";
-  }
-  return user.email.split("@", 1)[0];
-}
-
 function formatServing(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toLocaleString("hr-HR");
+}
+
+function formatIngredientAmount(ingredient: RecipeIngredient): string {
+  if (ingredient.amount == null) {
+    return "";
+  }
+  const amount = Number.isInteger(ingredient.amount)
+    ? String(ingredient.amount)
+    : ingredient.amount.toLocaleString("hr-HR");
+  return [amount, ingredient.unit].filter(Boolean).join(" ");
 }
 
 function renderMarkdown(markdown: string): JSX.Element[] {
@@ -692,6 +696,7 @@ export function App() {
     user?.role === "moderator" || user?.role === "administrator" || user?.role === "superadmin";
   const isAdmin = user?.role === "administrator" || user?.role === "superadmin";
   const collapsedNav = route.name === "detail";
+  const profileAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const syncRoute = () => setRoute(parseRoute());
@@ -702,13 +707,21 @@ export function App() {
   useEffect(() => {
     async function checkVersion() {
       try {
-        const response = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
+        const response = await fetch(`/version.json?t=${Date.now()}`, {
+          cache: "reload",
+          headers: { "Cache-Control": "no-cache" },
+        });
         if (!response.ok) {
           return;
         }
         const versionInfo = (await response.json()) as VersionInfo;
         if (versionInfo.version && versionInfo.version !== appVersion) {
           setAvailableVersion(versionInfo);
+          const reloadMarker = `${appVersion}->${versionInfo.version}`;
+          if (localStorage.getItem(versionReloadStorageKey) !== reloadMarker) {
+            localStorage.setItem(versionReloadStorageKey, reloadMarker);
+            window.location.reload();
+          }
         }
       } catch {
         // Version checks should never interrupt normal recipe browsing.
@@ -716,9 +729,35 @@ export function App() {
     }
 
     void checkVersion();
-    const interval = window.setInterval(() => void checkVersion(), 5 * 60 * 1000);
-    return () => window.clearInterval(interval);
+    const onFocus = () => void checkVersion();
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        void checkVersion();
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = window.setInterval(() => void checkVersion(), 60 * 1000);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!profileOpen) {
+      return;
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !profileAreaRef.current?.contains(target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [profileOpen]);
 
   useEffect(() => {
     const onScroll = () => setHeaderCompact(window.scrollY > 40);
@@ -933,7 +972,7 @@ export function App() {
       setProfileAvatarUrl(response.user.avatar_url ?? "");
       setLoginPassword("");
       setProfileOpen(false);
-      setNotice(`Prijavljen si kao ${usernameFromUser(response.user)}.`);
+      setNotice(`Prijavljen si kao ${response.user.display_name}.`);
     } catch (error) {
       setAppError((error as Error).message);
     }
@@ -1351,8 +1390,8 @@ export function App() {
             </div>
 
             <label class="language-picker" aria-label="Jezik aplikacije">
-              <span>Jezik</span>
               <select
+                aria-label="Jezik aplikacije"
                 value={language}
                 onChange={(event) => setLanguage((event.currentTarget as HTMLSelectElement).value)}
               >
@@ -1362,23 +1401,25 @@ export function App() {
               </select>
             </label>
 
-            <div class="profile-area">
+            <div class="profile-area" ref={profileAreaRef}>
               <button
                 type="button"
                 class="profile-trigger"
                 onClick={() => setProfileOpen((current) => !current)}
                 aria-expanded={profileOpen}
+                aria-label={user ? "Korisnički izbornik" : "Prijava"}
               >
                 <span class={`profile-avatar ${user?.avatar_url ? "has-image" : ""}`}>
                   {user?.avatar_url ? (
                     <img src={user.avatar_url} alt={user.display_name} />
+                  ) : user ? (
+                    user.display_name.slice(0, 1).toUpperCase()
                   ) : (
-                    usernameFromUser(user).slice(0, 1).toUpperCase()
+                    <svg viewBox="0 0 48 48" aria-hidden="true" class="guest-icon">
+                      <circle cx="24" cy="17" r="9" />
+                      <path d="M8 42c2.4-10 8-15 16-15s13.6 5 16 15" />
+                    </svg>
                   )}
-                </span>
-                <span class="profile-status">
-                  <strong>{user ? `@${usernameFromUser(user)}` : "Gost"}</strong>
-                  <span>{user ? "Prijavljen" : "Nije prijavljen"}</span>
                 </span>
               </button>
 
@@ -1480,7 +1521,7 @@ export function App() {
                   ) : (
                     <div class="auth-stack">
                       <div class="user-summary">
-                        <strong>@{usernameFromUser(user)}</strong>
+                        <strong>{user.display_name}</strong>
                         <span class="muted">{user.email}</span>
                         <span class="muted">{user.role}</span>
                       </div>
@@ -1663,7 +1704,6 @@ export function App() {
                           {!recipe.verified ? <span class="status-tag warning-tag">neprovjereno</span> : null}
                         </div>
                         <h3>{recipe.title}</h3>
-                        <p class="muted">@{recipe.author_username}</p>
                         <RecipeMetaStrip recipe={recipe} />
                       </div>
                     </button>
@@ -1752,7 +1792,6 @@ export function App() {
                     <p class="eyebrow">Recept</p>
                     <h2>{recipeDetail.title}</h2>
                     <div class="meta-strip">
-                      <span>@{recipeDetail.author_username}</span>
                       <span>{recipeDetail.category_name ?? "Bez kategorije"}</span>
                       {!recipeDetail.verified ? <span class="status-tag warning-tag">neprovjereno</span> : null}
                     </div>
@@ -1815,11 +1854,11 @@ export function App() {
                   <div class="ingredients-stack">
                     {recipeDetail.ingredients.map((ingredient) => (
                       <div key={ingredient.id} class="ingredient-chip-row">
-                        <strong>{ingredient.ingredient_name}</strong>
-                        <span>
-                          {ingredient.amount ?? "-"} {ingredient.unit ?? ""}
+                        <strong class="ingredient-amount">{formatIngredientAmount(ingredient)}</strong>
+                        <span class="ingredient-text">
+                          {ingredient.ingredient_name}
+                          {ingredient.note ? <span class="muted"> ({ingredient.note})</span> : null}
                         </span>
-                        <span class="muted">{ingredient.note ?? ingredient.canonical_name}</span>
                       </div>
                     ))}
                   </div>

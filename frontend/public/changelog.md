@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.4.2
+
+- Aplikacija sada sama osvježava stranicu kada je dostupna nova verzija.
+- Gornji desni izbornik je kompaktniji i bolje poravnat.
+- Sastojci na receptu prikazuju se preglednije u jednom retku.
+
 ## 0.4.1
 
 - Popravljeno je dupliciranje slike pri kliku na sliku u editoru postupka.
