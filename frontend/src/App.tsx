@@ -12,13 +12,14 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.3.1";
+const appVersion = "0.4.0";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
 type AuthPanelMode = "login" | "register";
 type ProfilePanelMode = "profile" | "password";
 type RecipeScope = "all" | "mine" | "favorites";
+type ManagementMode = "unverified" | "latest" | "users";
 
 type User = {
   id: number;
@@ -26,6 +27,11 @@ type User = {
   display_name: string;
   avatar_url: string | null;
   role: Role;
+};
+
+type ManagedUser = User & {
+  banned: boolean;
+  created_at: string;
 };
 
 type CategoryOption = {
@@ -163,6 +169,23 @@ const languages = [
   { code: "en", label: "EN" },
   { code: "de", label: "DE" },
 ];
+
+const roleLabels: Record<Role, string> = {
+  user: "Korisnik",
+  moderator: "Moderator",
+  administrator: "Administrator",
+  superadmin: "Superadmin",
+};
+
+function assignableRoles(actor: User | null): Role[] {
+  if (actor?.role === "superadmin") {
+    return ["user", "moderator", "administrator"];
+  }
+  if (actor?.role === "administrator") {
+    return ["user", "moderator"];
+  }
+  return [];
+}
 
 class ApiError extends Error {
   status: number;
@@ -619,20 +642,23 @@ export function App() {
   const [user, setUser] = useState<User | null>(null);
   const [options, setOptions] = useState<RecipeFormOptions>({ categories: [], ingredients: [], units: [] });
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
+  const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
   const [changelogMarkdown, setChangelogMarkdown] = useState("");
   const [availableVersion, setAvailableVersion] = useState<VersionInfo | null>(null);
   const [language, setLanguage] = useState(localStorage.getItem(languageStorageKey) ?? "hr");
   const [query, setQuery] = useState("");
+  const [userQuery, setUserQuery] = useState("");
   const [recipeScope, setRecipeScope] = useState<RecipeScope>("all");
   const [includeHidden, setIncludeHidden] = useState(false);
-  const [managementMode, setManagementMode] = useState<"latest" | "unverified">("unverified");
+  const [managementMode, setManagementMode] = useState<ManagementMode>("unverified");
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPanelMode, setAuthPanelMode] = useState<AuthPanelMode>("login");
   const [profilePanelMode, setProfilePanelMode] = useState<ProfilePanelMode>("profile");
   const [headerCompact, setHeaderCompact] = useState(false);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
@@ -728,10 +754,16 @@ export function App() {
   }, [token]);
 
   useEffect(() => {
-    if (route.name === "list" || route.name === "management") {
+    if (route.name === "list" || (route.name === "management" && managementMode !== "users")) {
       void loadRecipes();
     }
   }, [token, query, recipeScope, includeHidden, managementMode, route, language]);
+
+  useEffect(() => {
+    if (route.name === "management" && managementMode === "users" && isAdmin) {
+      void loadManagedUsers();
+    }
+  }, [token, userQuery, managementMode, route, isAdmin]);
 
   useEffect(() => {
     if (route.name === "detail" || route.name === "edit") {
@@ -759,7 +791,10 @@ export function App() {
       setNotice("Upravljanje je dostupno samo moderatorima i administratorima.");
       navigate("/recipes");
     }
-  }, [route, token, language, user, isModerator]);
+    if (route.name === "management" && managementMode === "users" && user && !isAdmin) {
+      setManagementMode("unverified");
+    }
+  }, [route, token, language, user, isModerator, isAdmin, managementMode]);
 
   useEffect(() => {
     if (route.name !== "changelog" || changelogMarkdown) {
@@ -818,6 +853,31 @@ export function App() {
       }
     } finally {
       setLoadingRecipes(false);
+    }
+  }
+
+  async function loadManagedUsers() {
+    if (!token || !isAdmin) {
+      return;
+    }
+    setLoadingUsers(true);
+    setAppError(null);
+    const params = new URLSearchParams();
+    if (userQuery.trim()) {
+      params.set("q", userQuery.trim());
+    }
+
+    try {
+      const list = await apiRequest<ManagedUser[]>(`/users?${params.toString()}`, {}, token);
+      setManagedUsers(list);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno.");
+      } else {
+        setAppError((error as Error).message);
+      }
+    } finally {
+      setLoadingUsers(false);
     }
   }
 
@@ -1116,6 +1176,41 @@ export function App() {
       );
       setNotice("Status recepta je promijenjen.");
       await loadRecipes();
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
+  async function updateManagedUserRole(managedUser: ManagedUser, role: Role) {
+    if (!token) {
+      return;
+    }
+    try {
+      const updated = await apiRequest<ManagedUser>(
+        `/users/${managedUser.id}/role`,
+        { method: "PATCH", body: JSON.stringify({ role }) },
+        token,
+      );
+      setManagedUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setNotice(`Uloga korisnika ${updated.display_name} je ažurirana.`);
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
+  async function updateManagedUserBan(managedUser: ManagedUser) {
+    if (!token) {
+      return;
+    }
+    const banned = !managedUser.banned;
+    try {
+      const updated = await apiRequest<ManagedUser>(
+        `/users/${managedUser.id}/ban`,
+        { method: "PATCH", body: JSON.stringify({ banned }) },
+        token,
+      );
+      setManagedUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setNotice(banned ? "Korisnik je blokiran." : "Korisnik je odblokiran.");
     } catch (error) {
       setAppError((error as Error).message);
     }
@@ -1451,6 +1546,15 @@ export function App() {
                     >
                       Zadnji recepti
                     </button>
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        class={managementMode === "users" ? "active" : ""}
+                        onClick={() => setManagementMode("users")}
+                      >
+                        Korisnici
+                      </button>
+                    ) : null}
                   </div>
                 )}
                 {route.name === "list" && isModerator ? (
@@ -1465,11 +1569,68 @@ export function App() {
                     <span>Prikaži skrivene</span>
                   </label>
                 ) : null}
-                {route.name === "management" && isAdmin ? (
-                  <span class="management-note">Korisnici i logovi dolaze ovdje za administratore.</span>
+                {route.name === "management" && managementMode === "users" ? (
+                  <input
+                    class="user-search"
+                    type="search"
+                    value={userQuery}
+                    onInput={(event) => setUserQuery((event.currentTarget as HTMLInputElement).value)}
+                    placeholder="Pretraži korisnike"
+                  />
                 ) : null}
               </div>
 
+              {route.name === "management" && managementMode === "users" ? (
+                <div class="user-management-list panel">
+                  {managedUsers.map((managedUser) => {
+                    const roles = assignableRoles(user);
+                    const canManage = managedUser.id !== user?.id && roles.includes(managedUser.role);
+                    return (
+                      <article key={managedUser.id} class="managed-user-row">
+                        <div class="managed-user-main">
+                          {managedUser.avatar_url ? (
+                            <img class="managed-user-avatar" src={managedUser.avatar_url} alt={managedUser.display_name} />
+                          ) : (
+                            <span class="managed-user-avatar fallback">
+                              {managedUser.display_name.slice(0, 1).toUpperCase()}
+                            </span>
+                          )}
+                          <div>
+                            <strong>{managedUser.display_name}</strong>
+                            <span>{managedUser.email}</span>
+                          </div>
+                        </div>
+                        <span class={`status-tag ${managedUser.banned ? "warning-tag" : ""}`}>
+                          {managedUser.banned ? "blokiran" : roleLabels[managedUser.role]}
+                        </span>
+                        <select
+                          value={managedUser.role}
+                          disabled={!canManage}
+                          onChange={(event) => updateManagedUserRole(managedUser, (event.currentTarget as HTMLSelectElement).value as Role)}
+                        >
+                          {roles.map((role) => (
+                            <option key={role} value={role}>
+                              {roleLabels[role]}
+                            </option>
+                          ))}
+                          {!roles.includes(managedUser.role) ? (
+                            <option value={managedUser.role}>{roleLabels[managedUser.role]}</option>
+                          ) : null}
+                        </select>
+                        <button
+                          type="button"
+                          class="secondary small-action"
+                          disabled={!canManage}
+                          onClick={() => updateManagedUserBan(managedUser)}
+                        >
+                          {managedUser.banned ? "Odblokiraj" : "Blokiraj"}
+                        </button>
+                      </article>
+                    );
+                  })}
+                  {!managedUsers.length && !loadingUsers ? <div class="empty-card">Nema korisnika za prikaz.</div> : null}
+                </div>
+              ) : (
               <div class={viewMode === "tiles" ? "recipe-grid" : "recipe-list-rows"}>
                 {recipes.map((recipe) => (
                   <article key={recipe.id} class={`recipe-card ${viewMode}`}>
@@ -1539,6 +1700,7 @@ export function App() {
                   </div>
                 ) : null}
               </div>
+              )}
             </div>
           </section>
         ) : null}

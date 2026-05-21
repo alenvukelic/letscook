@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.4.0
+
+- Administratori sada mogu pregledavati korisnike u Upravljanju.
+- Administratori mogu mijenjati korisničke uloge u skladu s pravilima ovlasti.
+- Administratori mogu blokirati i odblokirati korisnike.
+
 ## 0.3.1
 
 - Ispravljeno je cacheiranje podataka o verziji kako browser ne bi ostao na staroj verziji.

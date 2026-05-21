@@ -1,9 +1,8 @@
 {
-  "version": "0.3.1",
+  "version": "0.4.0",
   "changes": [
-    "Uređivanje recepta pouzdanije popunjava naslov i ostala polja.",
-    "U editoru postupka koriste se samo Naslov i Podnaslov; glavni naslov recepta ostaje izvan postupka.",
-    "Aplikacija javlja kada je dostupna novija verzija i nudi osvježavanje.",
-    "Ispravljeno je cacheiranje podataka o verziji kako browser ne bi ostao na staroj verziji."
+    "Administratori sada mogu pregledavati korisnike u Upravljanju.",
+    "Administratori mogu mijenjati korisničke uloge u skladu s pravilima ovlasti.",
+    "Administratori mogu blokirati i odblokirati korisnike."
   ]
 }
