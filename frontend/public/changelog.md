@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.4.3
+
+- Editor postupka je zamijenjen stabilnijim editorom bez dupliciranja slika.
+- Toolbar editora je jednostavniji i pouzdano klikabilan.
+- Ikona neprijavljenog korisnika sada je siva.
+
 ## 0.4.2
 
 - Aplikacija sada sama osvježava stranicu kada je dostupna nova verzija.

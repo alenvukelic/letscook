@@ -1,7 +1,5 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import Editor from "@toast-ui/editor";
-import "@toast-ui/editor/dist/toastui-editor.css";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 
@@ -13,7 +11,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.4.2";
+const appVersion = "0.4.3";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -431,101 +429,45 @@ function RichTextEditor({
   media: RecipeMedia[];
   onChange: (value: string) => void;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<Editor | null>(null);
-  const latestValueRef = useRef(value);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    latestValueRef.current = value;
-    if (editorRef.current && editorRef.current.getMarkdown() !== value) {
-      editorRef.current.setMarkdown(value, false);
-    }
-  }, [value]);
+  function updateValue(nextValue: string) {
+    onChange(nextValue);
+  }
 
-  useEffect(() => {
-    if (!containerRef.current || editorRef.current) {
+  function replaceSelection(format: (selection: string) => string) {
+    const textarea = textareaRef.current;
+    if (!textarea) {
       return;
     }
-
-    const createToolbarButton = (label: string, className: string, onClick: () => void) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = label;
-      button.className = className;
-      button.setAttribute("aria-label", label);
-      button.addEventListener("click", onClick);
-      return button;
-    };
-
-    const updateFromEditor = () => {
-      const nextValue = editorRef.current?.getMarkdown() ?? latestValueRef.current;
-      latestValueRef.current = nextValue;
-      onChange(nextValue);
-    };
-
-    const headingButton = (level: 2 | 3, label: string) =>
-      createToolbarButton(label, "toast-heading-button", () => {
-        editorRef.current?.focus();
-        editorRef.current?.exec("heading", { level });
-        updateFromEditor();
-      });
-    const underlineButton = createToolbarButton("U", "toast-underline-button", () => {
-      editorRef.current?.focus();
-      document.execCommand("underline");
-      updateFromEditor();
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = value.slice(start, end);
+    const replacement = format(selectedText);
+    const nextValue = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
+    updateValue(nextValue);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start, start + replacement.length);
     });
+  }
 
-    editorRef.current = new Editor({
-      el: containerRef.current,
-      initialValue: latestValueRef.current,
-      initialEditType: "wysiwyg",
-      hideModeSwitch: true,
-      previewStyle: "vertical",
-      height: "420px",
-      usageStatistics: false,
-      toolbarItems: [
-        [
-          { name: "heading2", el: headingButton(2, "Naslov") },
-          { name: "heading3", el: headingButton(3, "Podnaslov") },
-          "bold",
-          "italic",
-          { name: "underline", el: underlineButton },
-        ],
-        ["ul", "ol", "image"],
-      ],
-      events: {
-        change: () => {
-          const nextValue = editorRef.current?.getMarkdown() ?? "";
-          latestValueRef.current = nextValue;
-          onChange(nextValue);
-        },
-      },
-      hooks: {
-        addImageBlobHook: (blob, callback) => {
-          void uploadEditorImage(blob, callback);
-        },
-      },
+  function insertAtStart(markdown: string) {
+    const nextValue = value.trim() ? `${markdown}\n\n${value}` : markdown;
+    updateValue(nextValue);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }
+
+  function insertList(ordered: boolean) {
+    replaceSelection((selection) => {
+      const fallback = ordered ? "Prvi korak" : "Stavka";
+      const lines = (selection || fallback).split("\n");
+      return lines.map((line, index) => `${ordered ? `${index + 1}.` : "-"} ${line}`).join("\n");
     });
+  }
 
-    const stopImageSelectionClick = (event: MouseEvent) => {
-      const target = event.target;
-      if (target instanceof HTMLImageElement && target.closest(".toastui-editor-contents")) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    containerRef.current.addEventListener("click", stopImageSelectionClick, true);
-    containerRef.current.addEventListener("mousedown", stopImageSelectionClick, true);
-
-    return () => {
-      containerRef.current?.removeEventListener("click", stopImageSelectionClick, true);
-      containerRef.current?.removeEventListener("mousedown", stopImageSelectionClick, true);
-      editorRef.current?.destroy();
-      editorRef.current = null;
-    };
-  }, []);
-
-  async function uploadEditorImage(blob: Blob | File, callback: (url: string, altText: string) => void) {
+  async function uploadEditorImage(blob: Blob | File) {
     if (!token) {
       window.alert("Za upload slike prijavi se u aplikaciju.");
       return;
@@ -538,23 +480,27 @@ function RichTextEditor({
         { method: "POST", body: formData },
         token,
       );
-      callback(response.url, blob instanceof File ? blob.name : "Slika recepta");
+      insertAtStart(`![${blob instanceof File ? blob.name : "Slika recepta"}](${response.url})`);
     } catch (error) {
       window.alert((error as Error).message);
     }
   }
 
   function insertExistingImage(mediaItem: RecipeMedia) {
-    const current = editorRef.current?.getMarkdown() ?? latestValueRef.current;
-    const imageMarkdown = `![${mediaItem.original_filename}](${mediaItem.url})`;
-    const nextValue = current.trim() ? `${imageMarkdown}\n\n${current}` : imageMarkdown;
-    editorRef.current?.setMarkdown(nextValue, false);
-    latestValueRef.current = nextValue;
-    onChange(nextValue);
+    insertAtStart(`![${mediaItem.original_filename}](${mediaItem.url})`);
+  }
+
+  function handleImageFileChange(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) {
+      void uploadEditorImage(file);
+    }
+    input.value = "";
   }
 
   return (
-    <div class="toast-editor-wrap">
+    <div class="markdown-editor-wrap">
       {media.length ? (
         <div class="editor-media-tray compact-media-tray">
           <span>Dostupne slike</span>
@@ -566,7 +512,48 @@ function RichTextEditor({
           ))}
         </div>
       ) : null}
-      <div ref={containerRef} class="toast-editor-host" />
+      <div class="markdown-editor-host">
+        <div class="markdown-editor-toolbar" aria-label="Alati za uređivanje postupka">
+          <button type="button" onClick={() => replaceSelection((selection) => `## ${selection || "Naslov"}`)}>
+            Naslov
+          </button>
+          <button type="button" onClick={() => replaceSelection((selection) => `### ${selection || "Podnaslov"}`)}>
+            Podnaslov
+          </button>
+          <button type="button" onClick={() => replaceSelection((selection) => `**${selection || "tekst"}**`)}>
+            Bold
+          </button>
+          <button type="button" onClick={() => replaceSelection((selection) => `_${selection || "tekst"}_`)}>
+            Italic
+          </button>
+          <button type="button" onClick={() => replaceSelection((selection) => `<u>${selection || "tekst"}</u>`)}>
+            Underline
+          </button>
+          <button type="button" onClick={() => insertList(false)}>
+            Lista
+          </button>
+          <button type="button" onClick={() => insertList(true)}>
+            Brojevi
+          </button>
+          <button type="button" onClick={() => fileInputRef.current?.click()}>
+            Slika
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="hidden-file-input"
+            onChange={handleImageFileChange}
+          />
+        </div>
+        <textarea
+          ref={textareaRef}
+          class="markdown-editor-textarea"
+          value={value}
+          onInput={(event) => updateValue((event.currentTarget as HTMLTextAreaElement).value)}
+          placeholder="Upiši postupak pripreme. Možeš koristiti naslove, liste i lokalno učitane slike."
+        />
+      </div>
     </div>
   );
 }
@@ -1409,7 +1396,7 @@ export function App() {
                 aria-expanded={profileOpen}
                 aria-label={user ? "Korisnički izbornik" : "Prijava"}
               >
-                <span class={`profile-avatar ${user?.avatar_url ? "has-image" : ""}`}>
+                <span class={`profile-avatar ${user?.avatar_url ? "has-image" : ""} ${!user ? "guest-avatar" : ""}`}>
                   {user?.avatar_url ? (
                     <img src={user.avatar_url} alt={user.display_name} />
                   ) : user ? (
