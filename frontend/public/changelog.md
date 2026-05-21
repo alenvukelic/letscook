@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.4.1
+
+- Popravljeno je dupliciranje slike pri kliku na sliku u editoru postupka.
+- Toolbar editora bolje se prelama i tipke više ne izlaze iz svog prostora.
+- Editor i zaglavlje se stabilnije prilagođavaju pri smanjivanju prozora.
+
 ## 0.4.0
 
 - Administratori sada mogu pregledavati korisnike u Upravljanju.

@@ -12,7 +12,7 @@ const apiBaseUrl =
 const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
-const appVersion = "0.4.0";
+const appVersion = "0.4.1";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -503,7 +503,19 @@ function RichTextEditor({
       },
     });
 
+    const stopImageSelectionClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLImageElement && target.closest(".toastui-editor-contents")) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    containerRef.current.addEventListener("click", stopImageSelectionClick, true);
+    containerRef.current.addEventListener("mousedown", stopImageSelectionClick, true);
+
     return () => {
+      containerRef.current?.removeEventListener("click", stopImageSelectionClick, true);
+      containerRef.current?.removeEventListener("mousedown", stopImageSelectionClick, true);
       editorRef.current?.destroy();
       editorRef.current = null;
     };
