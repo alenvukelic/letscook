@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.6.1";
+const appVersion = "0.6.2";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -463,12 +463,10 @@ function ComplexityPicker({ value, onChange }: { value: string; onChange: (value
 function RichTextEditor({
   value,
   token,
-  media,
   onChange,
 }: {
   value: string;
   token: string | null;
-  media: RecipeMedia[];
   onChange: (value: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -532,6 +530,7 @@ function RichTextEditor({
           void uploadEditorImage(file);
           return true;
         },
+        handleClickOn: (_view, _pos, node) => node.type.name === "image",
       },
       onUpdate: ({ editor }) => {
         const nextValue = editor.getMarkdown();
@@ -546,17 +545,6 @@ function RichTextEditor({
       editorRef.current = null;
     };
   }, []);
-
-  function updateValue(nextValue: string) {
-    latestValueRef.current = nextValue;
-    onChange(nextValue);
-  }
-
-  function insertAtStart(markdown: string) {
-    const nextValue = value.trim() ? `${markdown}\n\n${value}` : markdown;
-    editorRef.current?.commands.setContent(nextValue, { contentType: "markdown" });
-    updateValue(nextValue);
-  }
 
   async function uploadEditorImage(blob: Blob | File) {
     if (!token) {
@@ -577,10 +565,6 @@ function RichTextEditor({
     }
   }
 
-  function insertExistingImage(mediaItem: RecipeMedia) {
-    insertAtStart(`![${mediaItem.original_filename}](${mediaItem.url})`);
-  }
-
   function handleImageFileChange(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
@@ -592,17 +576,6 @@ function RichTextEditor({
 
   return (
     <div class="markdown-editor-wrap">
-      {media.length ? (
-        <div class="editor-media-tray compact-media-tray">
-          <span>Dostupne slike</span>
-          {media.map((item) => (
-            <button key={item.id} type="button" onClick={() => insertExistingImage(item)}>
-              <img src={item.url} alt={item.original_filename} />
-              <span>Umetni na početak</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
       <div class="markdown-editor-host">
         <div class="markdown-editor-toolbar" aria-label="Alati za uređivanje postupka">
           <button type="button" title="Bold" aria-label="Bold" onClick={() => editorRef.current?.chain().focus().toggleBold().run()}><strong>B</strong></button>
@@ -2159,17 +2132,16 @@ export function App() {
                 </div>
               </div>
 
-              <label>
-                Postupak
+              <section class="editor-procedure-field">
+                <h3>Postupak</h3>
                 <RichTextEditor
                   value={formState.content_markdown}
                   token={token}
-                  media={route.name === "edit" && recipeDetail ? recipeDetail.media : []}
                   onChange={(content_markdown) =>
                     setFormState((current) => ({ ...current, content_markdown }))
                   }
                 />
-              </label>
+              </section>
               <div class="editor-save-row">
                 <button type="submit" class="primary" disabled={saving}>
                   {saving ? "Spremam..." : "SPREMI"}

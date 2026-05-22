@@ -914,6 +914,11 @@ h3 {
   gap: 16px;
 }
 
+.editor-procedure-field {
+  display: grid;
+  gap: 10px;
+}
+
 .editor-heading-row .muted {
   max-width: 360px;
   font-size: 0.82rem;

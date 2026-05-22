@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.6.2
+
+- U editoru recepta uklonjeno je nenamjerno dupliciranje postojećih slika.
+- Klik u tekst postupka više ne aktivira umetanje slike.
+- Postupak u editoru sada je odvojen od HTML label kontrole radi stabilnijeg fokusa.
+
 ## 0.6.1
 
 - Slika koja je već prikazana iznad recepta više se ne ponavlja u pripremi.

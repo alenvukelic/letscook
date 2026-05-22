@@ -1,8 +1,8 @@
 {
-  "version": "0.6.1",
+  "version": "0.6.2",
   "changes": [
-    "Slika koja je već prikazana iznad recepta više se ne ponavlja u pripremi.",
-    "Slike u receptu ograničene su na pregledniju veličinu.",
-    "Editor recepta stabilnije radi nakon umetanja slike."
+    "U editoru recepta uklonjeno je nenamjerno dupliciranje postojećih slika.",
+    "Klik u tekst postupka više ne aktivira umetanje slike.",
+    "Postupak u editoru sada je odvojen od HTML label kontrole radi stabilnijeg fokusa."
   ]
 }
