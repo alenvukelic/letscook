@@ -779,6 +779,7 @@ h3 {
 
 .gallery-image {
   width: 100%;
+  max-width: 800px;
   height: 240px;
   border-radius: 22px;
   object-fit: cover;
@@ -808,11 +809,30 @@ h3 {
 }
 
 .steps-html img {
-  max-width: 100%;
+  max-width: min(100%, 800px);
   max-height: 420px;
   border-radius: 18px;
   object-fit: contain;
   box-shadow: 0 12px 28px rgba(120, 67, 25, 0.14);
+}
+
+.steps-html table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.steps-html th,
+.steps-html td {
+  border: 1px solid rgba(90, 67, 36, 0.18);
+  padding: 8px;
+}
+
+.steps-html pre {
+  overflow: auto;
+  padding: 12px;
+  border-radius: 14px;
+  color: #fff8ec;
+  background: #2d2418;
 }
 
 .ingredient-chip-row {
@@ -1024,6 +1044,26 @@ h3 {
 
 .markdown-editor-toolbar button:hover {
   background: rgba(238, 111, 47, 0.12);
+}
+
+.tiptap-editor-content {
+  min-height: 420px;
+  padding: 14px;
+  outline: 0;
+  font-weight: 400;
+}
+
+.tiptap-editor-content img {
+  max-width: min(100%, 800px);
+  max-height: 420px;
+  border-radius: 18px;
+  object-fit: contain;
+  box-shadow: 0 12px 28px rgba(120, 67, 25, 0.14);
+}
+
+.editor-save-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .markdown-editor-textarea {

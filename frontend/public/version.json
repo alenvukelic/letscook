@@ -1,8 +1,8 @@
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "changes": [
-    "Editor postupka sada koristi novi WYSIWYG editor.",
-    "U editoru se tekst uređuje direktno, a recept se i dalje sprema kao Markdown.",
-    "Sastojci na pregledu recepta ostaju niže ispod zaglavlja pri skrolanju."
+    "Slika koja je već prikazana iznad recepta više se ne ponavlja u pripremi.",
+    "Slike u receptu ograničene su na pregledniju veličinu.",
+    "Editor recepta stabilnije radi nakon umetanja slike."
   ]
 }

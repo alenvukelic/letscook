@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.6.0";
+const appVersion = "0.6.1";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -372,18 +372,46 @@ function renderMarkdown(markdown: string): JSX.Element[] {
   return elements;
 }
 
-function renderRecipeMarkdown(markdown: string): string {
+function renderRecipeMarkdown(markdown: string, skippedFirstImageUrl?: string | null): string {
   const rawHtml = marked.parse(markdown, { async: false }) as string;
   const safeHtml = DOMPurify.sanitize(rawHtml, {
-    ALLOWED_TAGS: ["h1", "h2", "h3", "p", "strong", "em", "u", "ul", "ol", "li", "img", "br"],
-    ALLOWED_ATTR: ["src", "alt", "title"],
+    ALLOWED_TAGS: [
+      "h1",
+      "h2",
+      "h3",
+      "p",
+      "strong",
+      "em",
+      "u",
+      "ul",
+      "ol",
+      "li",
+      "img",
+      "br",
+      "a",
+      "table",
+      "thead",
+      "tbody",
+      "tr",
+      "th",
+      "td",
+      "pre",
+      "code",
+    ],
+    ALLOWED_ATTR: ["src", "alt", "title", "href", "target", "rel"],
   });
   const template = document.createElement("template");
   template.innerHTML = safeHtml;
+  let skippedFirstImage = false;
   template.content.querySelectorAll("img").forEach((image) => {
     const src = image.getAttribute("src") ?? "";
     if (!src.startsWith("/media/")) {
       image.remove();
+      return;
+    }
+    if (!skippedFirstImage && skippedFirstImageUrl && src === skippedFirstImageUrl) {
+      image.remove();
+      skippedFirstImage = true;
     }
   });
   return template.innerHTML;
@@ -449,8 +477,11 @@ function RichTextEditor({
   const latestValueRef = useRef(value);
 
   useEffect(() => {
+    if (value === latestValueRef.current) {
+      return;
+    }
     latestValueRef.current = value;
-    if (editorRef.current && editorRef.current.getMarkdown() !== value) {
+    if (editorRef.current) {
       editorRef.current.commands.setContent(value || "", { contentType: "markdown", emitUpdate: false });
     }
   }, [value]);
@@ -508,6 +539,7 @@ function RichTextEditor({
         onChange(nextValue);
       },
     });
+    editorRef.current.commands.unsetAllMarks();
 
     return () => {
       editorRef.current?.destroy();
@@ -539,7 +571,7 @@ function RichTextEditor({
         { method: "POST", body: formData },
         token,
       );
-      editorRef.current?.chain().focus().setImage({ src: response.url, alt: blob instanceof File ? blob.name : "Slika recepta" }).run();
+      editorRef.current?.chain().focus().setImage({ src: response.url, alt: blob instanceof File ? blob.name : "Slika recepta" }).createParagraphNear().run();
     } catch (error) {
       window.alert((error as Error).message);
     }
@@ -573,20 +605,18 @@ function RichTextEditor({
       ) : null}
       <div class="markdown-editor-host">
         <div class="markdown-editor-toolbar" aria-label="Alati za uređivanje postupka">
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleBold().run()}>Bold</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleItalic().run()}>Italic</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleUnderline().run()}>Underline</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()}>Lista</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()}>Brojevi</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()}>Kod</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Tablica</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().undo().run()}>Undo</button>
-          <button type="button" onClick={() => editorRef.current?.chain().focus().redo().run()}>Redo</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            Slika
-          </button>
+          <button type="button" title="Bold" aria-label="Bold" onClick={() => editorRef.current?.chain().focus().toggleBold().run()}><strong>B</strong></button>
+          <button type="button" title="Italic" aria-label="Italic" onClick={() => editorRef.current?.chain().focus().toggleItalic().run()}><em>I</em></button>
+          <button type="button" title="Underline" aria-label="Underline" onClick={() => editorRef.current?.chain().focus().toggleUnderline().run()}><u>U</u></button>
+          <button type="button" title="Naslov" aria-label="Naslov" onClick={() => editorRef.current?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</button>
+          <button type="button" title="Podnaslov" aria-label="Podnaslov" onClick={() => editorRef.current?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</button>
+          <button type="button" title="Lista" aria-label="Lista" onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()}>•</button>
+          <button type="button" title="Brojevi" aria-label="Brojevi" onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()}>1.</button>
+          <button type="button" title="Kod" aria-label="Kod" onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()}>Kod</button>
+          <button type="button" title="Tablica" aria-label="Tablica" onClick={() => editorRef.current?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>▦</button>
+          <button type="button" title="Undo" aria-label="Undo" onClick={() => editorRef.current?.chain().focus().undo().run()}>↶</button>
+          <button type="button" title="Redo" aria-label="Redo" onClick={() => editorRef.current?.chain().focus().redo().run()}>↷</button>
+          <button type="button" title="Slika" aria-label="Slika" onClick={() => fileInputRef.current?.click()}>Slika</button>
           <input
             ref={fileInputRef}
             type="file"
@@ -1892,6 +1922,7 @@ export function App() {
                       dangerouslySetInnerHTML={{
                         __html: renderRecipeMarkdown(
                           recipeDetail.content_markdown || recipeDetail.steps_html,
+                          recipeDetail.media[0]?.url ?? null,
                         ),
                       }}
                     />
@@ -2016,9 +2047,6 @@ export function App() {
                 >
                   Natrag
                 </button>
-                <button type="submit" class="primary" disabled={saving}>
-                  {saving ? "Spremam..." : "SPREMI"}
-                </button>
               </div>
 
               <div class="editor-heading-row">
@@ -2142,6 +2170,11 @@ export function App() {
                   }
                 />
               </label>
+              <div class="editor-save-row">
+                <button type="submit" class="primary" disabled={saving}>
+                  {saving ? "Spremam..." : "SPREMI"}
+                </button>
+              </div>
             </form>
           </section>
         ) : null}

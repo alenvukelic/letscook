@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.6.1
+
+- Slika koja je već prikazana iznad recepta više se ne ponavlja u pripremi.
+- Slike u receptu ograničene su na pregledniju veličinu.
+- Editor recepta stabilnije radi nakon umetanja slike.
+
 ## 0.6.0
 
 - Editor postupka sada koristi novi WYSIWYG editor.
