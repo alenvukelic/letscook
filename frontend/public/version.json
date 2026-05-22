@@ -1,8 +1,8 @@
 {
-  "version": "0.4.3",
+  "version": "0.5.0",
   "changes": [
-    "Editor postupka je zamijenjen stabilnijim editorom bez dupliciranja slika.",
-    "Toolbar editora je jednostavniji i pouzdano klikabilan.",
-    "Ikona neprijavljenog korisnika sada je siva."
+    "Novi korisnici se sada mogu registrirati kroz aplikaciju.",
+    "Nakon registracije korisnik je odmah prijavljen.",
+    "Registracija provjerava email, ime i minimalnu duljinu lozinke."
   ]
 }

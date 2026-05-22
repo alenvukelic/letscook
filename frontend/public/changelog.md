@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.5.0
+
+- Novi korisnici se sada mogu registrirati kroz aplikaciju.
+- Nakon registracije korisnik je odmah prijavljen.
+- Registracija provjerava email, ime i minimalnu duljinu lozinke.
+
 ## 0.4.3
 
 - Editor postupka je zamijenjen stabilnijim editorom bez dupliciranja slika.

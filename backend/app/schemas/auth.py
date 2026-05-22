@@ -11,6 +11,12 @@ class LoginRequest(BaseModel):
     remember_me: bool = False
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    display_name: str
+    password: str
+
+
 class ProfileUpdateRequest(BaseModel):
     email: str
     display_name: str

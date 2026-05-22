@@ -11,7 +11,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.4.3";
+const appVersion = "0.5.0";
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -965,11 +965,36 @@ export function App() {
     }
   }
 
-  function handleRegister(event: Event) {
+  async function handleRegister(event: Event) {
     event.preventDefault();
-    setNotice(
-      `Registracija za ${registerEmail || registerDisplayName || "novog korisnika"} još nije implementirana u backendu.`,
-    );
+    setAppError(null);
+    setNotice(null);
+
+    try {
+      const response = await apiRequest<{ access_token: string; user: User }>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          email: registerEmail,
+          display_name: registerDisplayName,
+          password: registerPassword,
+        }),
+      });
+      clearStoredToken();
+      sessionStorage.setItem(tokenSessionKey, response.access_token);
+      setToken(response.access_token);
+      setUser(response.user);
+      setProfileEmail(response.user.email);
+      setProfileDisplayName(response.user.display_name);
+      setProfileAvatarUrl(response.user.avatar_url ?? "");
+      setRegisterEmail("");
+      setRegisterDisplayName("");
+      setRegisterPassword("");
+      setAuthPanelMode("login");
+      setProfileOpen(false);
+      setNotice(`Dobro došao/la, ${response.user.display_name}.`);
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
   }
 
   function handleLogout() {

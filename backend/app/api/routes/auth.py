@@ -9,8 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_session
-from app.models import User
-from app.schemas.auth import LoginRequest, PasswordChangeRequest, ProfileUpdateRequest, TokenResponse, UserSummary
+from app.models import User, UserRole
+from app.schemas.auth import (
+    LoginRequest,
+    PasswordChangeRequest,
+    ProfileUpdateRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserSummary,
+)
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/auth")
@@ -62,6 +69,54 @@ async def login(
     return TokenResponse(access_token=access_token, user=serialize_user(user))
 
 
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def register(
+    payload: RegisterRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> TokenResponse:
+    email = payload.email.strip().lower()
+    display_name = payload.display_name.strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is not valid")
+    if not display_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Display name is required",
+        )
+    if len(payload.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters",
+        )
+
+    existing = await session.scalar(select(User.id).where(User.email == email))
+    if existing is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email is already in use")
+
+    user = User(
+        email=email,
+        display_name=display_name,
+        password_hash=hash_password(payload.password),
+        role=UserRole.user,
+        banned=False,
+    )
+    session.add(user)
+    await session.flush()
+    access_token = create_access_token(str(user.id), {"role": user.role.value})
+    await log_action(
+        session,
+        code="auth.registered",
+        actor_user_id=user.id,
+        target_user_id=user.id,
+        request=request,
+        extra={"email": user.email},
+    )
+    await session.commit()
+    await session.refresh(user)
+    return TokenResponse(access_token=access_token, user=serialize_user(user))
+
+
 @router.get("/me", response_model=UserSummary)
 async def me(user: User = Depends(get_current_user)) -> UserSummary:
     return serialize_user(user)
@@ -79,7 +134,10 @@ async def update_me(
     if not email or "@" not in email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is not valid")
     if not display_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Display name is required")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Display name is required",
+        )
     avatar_url = (payload.avatar_url or "").strip() or None
     if avatar_url is not None and not avatar_url.startswith("/media/"):
         raise HTTPException(
@@ -118,8 +176,14 @@ async def change_password(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> UserSummary:
-    if user.password_hash is None or not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is not valid")
+    if user.password_hash is None or not verify_password(
+        payload.current_password,
+        user.password_hash,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is not valid",
+        )
     if len(payload.new_password) < 8:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
