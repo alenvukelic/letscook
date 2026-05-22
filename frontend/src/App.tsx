@@ -1,6 +1,19 @@
 import type { JSX } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+import { Editor } from "@tiptap/core";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
+import { Table } from "@tiptap/extension-table";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
+import Underline from "@tiptap/extension-underline";
+import { Markdown } from "@tiptap/markdown";
+import StarterKit from "@tiptap/starter-kit";
 import DOMPurify from "dompurify";
+import { common, createLowlight } from "lowlight";
 import { marked } from "marked";
 
 const apiBaseUrl =
@@ -11,7 +24,8 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.5.0";
+const appVersion = "0.6.0";
+const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
 type ViewMode = "tiles" | "list";
@@ -429,42 +443,87 @@ function RichTextEditor({
   media: RecipeMedia[];
   onChange: (value: string) => void;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<Editor | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestValueRef = useRef(value);
 
-  function updateValue(nextValue: string) {
-    onChange(nextValue);
-  }
+  useEffect(() => {
+    latestValueRef.current = value;
+    if (editorRef.current && editorRef.current.getMarkdown() !== value) {
+      editorRef.current.commands.setContent(value || "", { contentType: "markdown", emitUpdate: false });
+    }
+  }, [value]);
 
-  function replaceSelection(format: (selection: string) => string) {
-    const textarea = textareaRef.current;
-    if (!textarea) {
+  useEffect(() => {
+    if (!containerRef.current || editorRef.current) {
       return;
     }
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = value.slice(start, end);
-    const replacement = format(selectedText);
-    const nextValue = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
-    updateValue(nextValue);
-    requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start, start + replacement.length);
+
+    editorRef.current = new Editor({
+      element: containerRef.current,
+      content: latestValueRef.current || "",
+      contentType: "markdown",
+      extensions: [
+        StarterKit.configure({ codeBlock: false }),
+        Markdown,
+        Underline,
+        Image.configure({ inline: false, allowBase64: false }),
+        Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
+        Table.configure({ resizable: true }),
+        TableRow,
+        TableHeader,
+        TableCell,
+        CodeBlockLowlight.configure({ lowlight }),
+        Placeholder.configure({
+          placeholder: "Upiši postupak pripreme. Možeš koristiti naslove, liste, tablice, kod i slike.",
+        }),
+      ],
+      editorProps: {
+        attributes: {
+          class: "tiptap-editor-content",
+        },
+        handleDrop: (_view, event) => {
+          const file = Array.from(event.dataTransfer?.files ?? []).find((item) => item.type.startsWith("image/"));
+          if (!file) {
+            return false;
+          }
+          event.preventDefault();
+          void uploadEditorImage(file);
+          return true;
+        },
+        handlePaste: (_view, event) => {
+          const file = Array.from(event.clipboardData?.files ?? []).find((item) => item.type.startsWith("image/"));
+          if (!file) {
+            return false;
+          }
+          event.preventDefault();
+          void uploadEditorImage(file);
+          return true;
+        },
+      },
+      onUpdate: ({ editor }) => {
+        const nextValue = editor.getMarkdown();
+        latestValueRef.current = nextValue;
+        onChange(nextValue);
+      },
     });
+
+    return () => {
+      editorRef.current?.destroy();
+      editorRef.current = null;
+    };
+  }, []);
+
+  function updateValue(nextValue: string) {
+    latestValueRef.current = nextValue;
+    onChange(nextValue);
   }
 
   function insertAtStart(markdown: string) {
     const nextValue = value.trim() ? `${markdown}\n\n${value}` : markdown;
+    editorRef.current?.commands.setContent(nextValue, { contentType: "markdown" });
     updateValue(nextValue);
-    requestAnimationFrame(() => textareaRef.current?.focus());
-  }
-
-  function insertList(ordered: boolean) {
-    replaceSelection((selection) => {
-      const fallback = ordered ? "Prvi korak" : "Stavka";
-      const lines = (selection || fallback).split("\n");
-      return lines.map((line, index) => `${ordered ? `${index + 1}.` : "-"} ${line}`).join("\n");
-    });
   }
 
   async function uploadEditorImage(blob: Blob | File) {
@@ -476,11 +535,11 @@ function RichTextEditor({
     formData.append("image", blob);
     try {
       const response = await apiRequest<{ url: string }>(
-        "/recipes/media",
+        "/upload",
         { method: "POST", body: formData },
         token,
       );
-      insertAtStart(`![${blob instanceof File ? blob.name : "Slika recepta"}](${response.url})`);
+      editorRef.current?.chain().focus().setImage({ src: response.url, alt: blob instanceof File ? blob.name : "Slika recepta" }).run();
     } catch (error) {
       window.alert((error as Error).message);
     }
@@ -514,27 +573,17 @@ function RichTextEditor({
       ) : null}
       <div class="markdown-editor-host">
         <div class="markdown-editor-toolbar" aria-label="Alati za uređivanje postupka">
-          <button type="button" onClick={() => replaceSelection((selection) => `## ${selection || "Naslov"}`)}>
-            Naslov
-          </button>
-          <button type="button" onClick={() => replaceSelection((selection) => `### ${selection || "Podnaslov"}`)}>
-            Podnaslov
-          </button>
-          <button type="button" onClick={() => replaceSelection((selection) => `**${selection || "tekst"}**`)}>
-            Bold
-          </button>
-          <button type="button" onClick={() => replaceSelection((selection) => `_${selection || "tekst"}_`)}>
-            Italic
-          </button>
-          <button type="button" onClick={() => replaceSelection((selection) => `<u>${selection || "tekst"}</u>`)}>
-            Underline
-          </button>
-          <button type="button" onClick={() => insertList(false)}>
-            Lista
-          </button>
-          <button type="button" onClick={() => insertList(true)}>
-            Brojevi
-          </button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleBold().run()}>Bold</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleItalic().run()}>Italic</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleUnderline().run()}>Underline</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleBulletList().run()}>Lista</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleOrderedList().run()}>Brojevi</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().toggleCodeBlock().run()}>Kod</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}>Tablica</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().undo().run()}>Undo</button>
+          <button type="button" onClick={() => editorRef.current?.chain().focus().redo().run()}>Redo</button>
           <button type="button" onClick={() => fileInputRef.current?.click()}>
             Slika
           </button>
@@ -546,13 +595,7 @@ function RichTextEditor({
             onChange={handleImageFileChange}
           />
         </div>
-        <textarea
-          ref={textareaRef}
-          class="markdown-editor-textarea"
-          value={value}
-          onInput={(event) => updateValue((event.currentTarget as HTMLTextAreaElement).value)}
-          placeholder="Upiši postupak pripreme. Možeš koristiti naslove, liste i lokalno učitane slike."
-        />
+        <div ref={containerRef} />
       </div>
     </div>
   );

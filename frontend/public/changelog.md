@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.6.0
+
+- Editor postupka sada koristi novi WYSIWYG editor.
+- U editoru se tekst uređuje direktno, a recept se i dalje sprema kao Markdown.
+- Sastojci na pregledu recepta ostaju niže ispod zaglavlja pri skrolanju.
+
 ## 0.5.0
 
 - Novi korisnici se sada mogu registrirati kroz aplikaciju.
