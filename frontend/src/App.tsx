@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.6.2";
+const appVersion = "0.6.3";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -402,18 +402,27 @@ function renderRecipeMarkdown(markdown: string, skippedFirstImageUrl?: string | 
   });
   const template = document.createElement("template");
   template.innerHTML = safeHtml;
-  let skippedFirstImage = false;
   template.content.querySelectorAll("img").forEach((image) => {
     const src = image.getAttribute("src") ?? "";
     if (!src.startsWith("/media/")) {
       image.remove();
-      return;
-    }
-    if (!skippedFirstImage && skippedFirstImageUrl && src === skippedFirstImageUrl) {
-      image.remove();
-      skippedFirstImage = true;
     }
   });
+
+  if (skippedFirstImageUrl) {
+    const firstElement = Array.from(template.content.children).find((element) => {
+      return element.textContent?.trim() || element.querySelector("img");
+    });
+    const leadingImage =
+      firstElement?.tagName === "IMG"
+        ? firstElement
+        : firstElement?.tagName === "P" && !firstElement.textContent?.trim()
+          ? firstElement.querySelector("img")
+          : null;
+    if (leadingImage?.getAttribute("src") === skippedFirstImageUrl) {
+      (firstElement ?? leadingImage).remove();
+    }
+  }
   return template.innerHTML;
 }
 
@@ -2134,6 +2143,9 @@ export function App() {
 
               <section class="editor-procedure-field">
                 <h3>Postupak</h3>
+                <p class="field-hint">
+                  U pripremu postavite prvo sliku gotovog jela, a niže ako je potrebno slike za pripremu.
+                </p>
                 <RichTextEditor
                   value={formState.content_markdown}
                   token={token}

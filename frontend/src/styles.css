@@ -763,7 +763,7 @@ h3 {
 
 .ingredients-panel {
   position: sticky;
-  top: 80px;
+  top: 118px;
 }
 
 .meta-strip {
@@ -794,9 +794,7 @@ h3 {
   gap: 12px;
 }
 
-.steps-list li,
-.steps-html li,
-.steps-html p {
+.steps-list li {
   padding: 12px 14px;
   border: 1px solid rgba(90, 67, 36, 0.1);
   border-radius: 18px;
@@ -806,6 +804,18 @@ h3 {
 .steps-html {
   display: grid;
   gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(90, 67, 36, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.steps-html p,
+.steps-html h1,
+.steps-html h2,
+.steps-html h3,
+.steps-html pre {
+  margin: 0;
 }
 
 .steps-html img {
@@ -917,6 +927,13 @@ h3 {
 .editor-procedure-field {
   display: grid;
   gap: 10px;
+}
+
+.field-hint {
+  margin: 0;
+  color: #6b5f4e;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .editor-heading-row .muted {

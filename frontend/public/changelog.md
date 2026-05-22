@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.6.3
+
+- Slika gotovog jela više se ne ponavlja na početku pripreme ako je već prikazana iznad recepta.
+- Upute u editoru sada jasnije objašnjavaju gdje staviti glavnu sliku i slike pripreme.
+- Prikaz pripreme i pozicija sastojaka pri skrolanju su pregledniji.
+
 ## 0.6.2
 
 - U editoru recepta uklonjeno je nenamjerno dupliciranje postojećih slika.

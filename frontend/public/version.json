@@ -1,8 +1,8 @@
 {
-  "version": "0.6.2",
+  "version": "0.6.3",
   "changes": [
-    "U editoru recepta uklonjeno je nenamjerno dupliciranje postojećih slika.",
-    "Klik u tekst postupka više ne aktivira umetanje slike.",
-    "Postupak u editoru sada je odvojen od HTML label kontrole radi stabilnijeg fokusa."
+    "Slika gotovog jela više se ne ponavlja na početku pripreme ako je već prikazana iznad recepta.",
+    "Upute u editoru sada jasnije objašnjavaju gdje staviti glavnu sliku i slike pripreme.",
+    "Prikaz pripreme i pozicija sastojaka pri skrolanju su pregledniji."
   ]
 }
