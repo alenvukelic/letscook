@@ -1,8 +1,8 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "changes": [
-    "Superadmin sada može preuzeti ZIP backup svih recepata s Markdown datotekama i slikama.",
-    "Administratori mogu trajno obrisati recept kada je to potrebno.",
-    "Upravljanje korisnicima sada uključuje blokiranje, promjenu lozinke i pregled recepata po korisniku."
+    "Aplikacija sada ima kompaktniji gornji header prilagođen mobitelima.",
+    "Glavni meni se otvara preko ikone s tri crte, a jezik i korisnički meni su desno.",
+    "Pretraga, filteri i odabir prikaza recepata nalaze se u jednom retku ispod headera."
   ]
 }

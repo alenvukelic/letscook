@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.7.0";
+const appVersion = "0.8.0";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -714,6 +714,7 @@ export function App() {
   const [managementRecipeView, setManagementRecipeView] = useState<ManagementRecipeView>("unverified");
   const [managedRecipeAuthorId, setManagedRecipeAuthorId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPanelMode, setAuthPanelMode] = useState<AuthPanelMode>("login");
   const [profilePanelMode, setProfilePanelMode] = useState<ProfilePanelMode>("profile");
@@ -741,7 +742,6 @@ export function App() {
     user?.role === "moderator" || user?.role === "administrator" || user?.role === "superadmin";
   const isAdmin = user?.role === "administrator" || user?.role === "superadmin";
   const isSuperadmin = user?.role === "superadmin";
-  const collapsedNav = route.name === "detail";
   const profileAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1025,6 +1025,7 @@ export function App() {
       setLoginPassword("");
       setProfileOpen(false);
       setNotice(`Prijavljen si kao ${response.user.display_name}.`);
+      setMenuOpen(false);
     } catch (error) {
       setAppError((error as Error).message);
     }
@@ -1114,6 +1115,7 @@ export function App() {
       }
       setManagementMode("recipes");
       setRecipeScope("all");
+      setMenuOpen(false);
       navigate("/management");
     }
   }
@@ -1461,84 +1463,49 @@ export function App() {
 
   return (
     <main class="app-shell">
-      <aside class={`left-rail ${collapsedNav ? "collapsed" : ""}`}>
-        <button type="button" class="brand-block" onClick={() => navigate("/recipes")}>
-          <span class="brand-mark">LC</span>
-          <span class="brand-text">LetsCook</span>
-        </button>
-
-        <nav class="main-nav" aria-label="Main navigation">
-          {[...navItems, ...(isModerator ? [{ label: "Upravljanje", icon: "U", action: "management" }] : [])].map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              class="nav-link"
-              onClick={() => {
-                if ("path" in item) {
-                  navigate(item.path);
-                  return;
-                }
-                handleUserMenu(item.action);
-              }}
-            >
-              <span class="nav-icon">{item.icon}</span>
-              <span class="nav-label">{item.label}</span>
-            </button>
-          ))}
-        </nav>
-      </aside>
-
       <div class="page-shell">
         <header class={`page-header ${headerCompact ? "compact-header" : ""}`}>
-          <div>
-            <p class="eyebrow">LetsCook</p>
-            <h1 class="page-title">
-              {route.name === "detail"
-                ? recipeDetail?.title ?? "Recept"
-                : route.name === "edit"
-                  ? "Uredi recept"
-                  : route.name === "new"
-                    ? "Dodaj novi recept"
-                    : route.name === "profile"
-                      ? "Profil i podaci"
-                      : route.name === "management"
-                        ? "Upravljanje"
-                        : route.name === "changelog"
-                          ? "Changelog"
-                          : "Novi i najzanimljiviji recepti"}
-            </h1>
+          <div class="header-left">
+            <button
+              type="button"
+              class="hamburger-button"
+              aria-label="Glavni meni"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((current) => !current)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <button type="button" class="brand-block" onClick={() => { setMenuOpen(false); navigate("/recipes"); }}>
+              <span class="brand-mark">LC</span>
+              <span class="brand-text">LetsCook</span>
+            </button>
+            {menuOpen ? (
+              <nav class="main-menu-popover panel" aria-label="Glavni meni">
+                {[...navItems, ...(isModerator ? [{ label: "Upravljanje", icon: "U", action: "management" }] : [])].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    class="nav-link"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      if ("path" in item) {
+                        navigate(item.path);
+                        return;
+                      }
+                      handleUserMenu(item.action);
+                    }}
+                  >
+                    <span class="nav-icon">{item.icon}</span>
+                    <span class="nav-label">{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+            ) : null}
           </div>
 
           <div class="header-right">
-            <div class="filters-inline">
-              {route.name === "list" ? (
-                <>
-                  <input
-                    class="search-input"
-                    value={query}
-                    placeholder="Pretraži naslove i sastojke"
-                    onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
-                  />
-                  <button
-                    type="button"
-                    class={`toggle-chip icon-toggle ${viewMode === "tiles" ? "active" : ""}`}
-                    onClick={() => setViewMode("tiles")}
-                    aria-label="Prikaz kartica"
-                  >
-                    ▦
-                  </button>
-                  <button
-                    type="button"
-                    class={`toggle-chip icon-toggle ${viewMode === "list" ? "active" : ""}`}
-                    onClick={() => setViewMode("list")}
-                    aria-label="Prikaz liste"
-                  >
-                    ☰
-                  </button>
-                </>
-              ) : null}
-            </div>
-
             <label class="language-picker" aria-label="Jezik aplikacije">
               <select
                 aria-label="Jezik aplikacije"
@@ -1689,6 +1656,25 @@ export function App() {
           </div>
         </header>
 
+        <section class="page-context">
+          <p class="eyebrow">LetsCook</p>
+          <h1 class="page-title">
+            {route.name === "detail"
+              ? recipeDetail?.title ?? "Recept"
+              : route.name === "edit"
+                ? "Uredi recept"
+                : route.name === "new"
+                  ? "Dodaj novi recept"
+                  : route.name === "profile"
+                    ? "Profil i podaci"
+                    : route.name === "management"
+                      ? "Upravljanje"
+                      : route.name === "changelog"
+                        ? "Changelog"
+                        : "Novi i najzanimljiviji recepti"}
+          </h1>
+        </section>
+
         {availableVersion ? (
           <div class="version-refresh-banner panel">
             <div>
@@ -1716,23 +1702,49 @@ export function App() {
             <div class="content-main">
               <div class="filter-bar panel">
                 {route.name === "list" ? (
-                  <div class="segmented-control" aria-label="Prikaz recepata">
-                    {[
-                      ["all", "Svi"],
-                      ["mine", "Moji recepti"],
-                      ["favorites", "Omiljeni"],
-                    ].map(([value, label]) => (
+                  <>
+                    <div class="view-toggles" aria-label="Način prikaza">
                       <button
-                        key={value}
                         type="button"
-                        class={recipeScope === value ? "active" : ""}
-                        disabled={value !== "all" && !user}
-                        onClick={() => setRecipeScope(value as RecipeScope)}
+                        class={`toggle-chip icon-toggle ${viewMode === "tiles" ? "active" : ""}`}
+                        onClick={() => setViewMode("tiles")}
+                        aria-label="Prikaz kartica"
                       >
-                        {label}
+                        ▦
                       </button>
-                    ))}
-                  </div>
+                      <button
+                        type="button"
+                        class={`toggle-chip icon-toggle ${viewMode === "list" ? "active" : ""}`}
+                        onClick={() => setViewMode("list")}
+                        aria-label="Prikaz liste"
+                      >
+                        ☰
+                      </button>
+                    </div>
+                    <input
+                      class="search-input"
+                      value={query}
+                      placeholder="Pretraži naslove i sastojke"
+                      onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
+                    />
+                    <div class="segmented-control" aria-label="Prikaz recepata">
+                      {[
+                        ["all", "Svi"],
+                        ["mine", "Moji recepti"],
+                        ["favorites", "Omiljeni"],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          class={recipeScope === value ? "active" : ""}
+                          disabled={value !== "all" && !user}
+                          onClick={() => setRecipeScope(value as RecipeScope)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 ) : (
                   <div class="segmented-control" aria-label="Upravljanje">
                     <button

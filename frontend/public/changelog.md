@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.8.0
+
+- Aplikacija sada ima kompaktniji gornji header prilagođen mobitelima.
+- Glavni meni se otvara preko ikone s tri crte, a jezik i korisnički meni su desno.
+- Pretraga, filteri i odabir prikaza recepata nalaze se u jednom retku ispod headera.
+
 ## 0.7.0
 
 - Superadmin sada može preuzeti ZIP backup svih recepata s Markdown datotekama i slikama.
