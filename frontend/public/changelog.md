@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.7.0
+
+- Superadmin sada može preuzeti ZIP backup svih recepata s Markdown datotekama i slikama.
+- Administratori mogu trajno obrisati recept kada je to potrebno.
+- Upravljanje korisnicima sada uključuje blokiranje, promjenu lozinke i pregled recepata po korisniku.
+
 ## 0.6.3
 
 - Slika gotovog jela više se ne ponavlja na početku pripreme ako je već prikazana iznad recepta.

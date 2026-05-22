@@ -5,9 +5,10 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.security import hash_password
 from app.db.session import get_session
 from app.models import User, UserRole
-from app.schemas.users import ManagedUser, UserBanUpdate, UserRoleUpdate
+from app.schemas.users import ManagedUser, UserBanUpdate, UserPasswordReset, UserRoleUpdate
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/users")
@@ -127,6 +128,43 @@ async def update_user_role(
         await session.commit()
         await session.refresh(target)
 
+    return serialize_user(target)
+
+
+@router.patch("/{user_id}/password", response_model=ManagedUser)
+async def reset_user_password(
+    user_id: int,
+    payload: UserPasswordReset,
+    request: Request,
+    actor: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ManagedUser:
+    require_admin_management(actor)
+    target = await get_target_user(session, user_id)
+    ensure_target_is_lower_role(actor, target)
+
+    if len(payload.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters long",
+        )
+    if target.id == 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Initial superadmin is protected",
+        )
+
+    target.password_hash = hash_password(payload.password)
+    await log_action(
+        session,
+        code="user.password_reset",
+        actor_user_id=actor.id,
+        target_user_id=target.id,
+        request=request,
+        extra={"table": "users", "record_id": target.id},
+    )
+    await session.commit()
+    await session.refresh(target)
     return serialize_user(target)
 
 

@@ -1,8 +1,8 @@
 {
-  "version": "0.6.3",
+  "version": "0.7.0",
   "changes": [
-    "Slika gotovog jela više se ne ponavlja na početku pripreme ako je već prikazana iznad recepta.",
-    "Upute u editoru sada jasnije objašnjavaju gdje staviti glavnu sliku i slike pripreme.",
-    "Prikaz pripreme i pozicija sastojaka pri skrolanju su pregledniji."
+    "Superadmin sada može preuzeti ZIP backup svih recepata s Markdown datotekama i slikama.",
+    "Administratori mogu trajno obrisati recept kada je to potrebno.",
+    "Upravljanje korisnicima sada uključuje blokiranje, promjenu lozinke i pregled recepata po korisniku."
   ]
 }

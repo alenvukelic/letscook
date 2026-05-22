@@ -24,3 +24,7 @@ class UserRoleUpdate(BaseModel):
 class UserBanUpdate(BaseModel):
     banned: bool
     reason: str | None = None
+
+
+class UserPasswordReset(BaseModel):
+    password: str

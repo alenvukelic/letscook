@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.6.3";
+const appVersion = "0.7.0";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -32,7 +32,8 @@ type ViewMode = "tiles" | "list";
 type AuthPanelMode = "login" | "register";
 type ProfilePanelMode = "profile" | "password";
 type RecipeScope = "all" | "mine" | "favorites";
-type ManagementMode = "unverified" | "latest" | "users";
+type ManagementMode = "recipes" | "users" | "backup";
+type ManagementRecipeView = "unverified" | "latest";
 
 type User = {
   id: number;
@@ -709,7 +710,9 @@ export function App() {
   const [userQuery, setUserQuery] = useState("");
   const [recipeScope, setRecipeScope] = useState<RecipeScope>("all");
   const [includeHidden, setIncludeHidden] = useState(false);
-  const [managementMode, setManagementMode] = useState<ManagementMode>("unverified");
+  const [managementMode, setManagementMode] = useState<ManagementMode>("recipes");
+  const [managementRecipeView, setManagementRecipeView] = useState<ManagementRecipeView>("unverified");
+  const [managedRecipeAuthorId, setManagedRecipeAuthorId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPanelMode, setAuthPanelMode] = useState<AuthPanelMode>("login");
@@ -737,6 +740,7 @@ export function App() {
   const isModerator =
     user?.role === "moderator" || user?.role === "administrator" || user?.role === "superadmin";
   const isAdmin = user?.role === "administrator" || user?.role === "superadmin";
+  const isSuperadmin = user?.role === "superadmin";
   const collapsedNav = route.name === "detail";
   const profileAreaRef = useRef<HTMLDivElement>(null);
 
@@ -847,10 +851,10 @@ export function App() {
   }, [token]);
 
   useEffect(() => {
-    if (route.name === "list" || (route.name === "management" && managementMode !== "users")) {
+    if (route.name === "list" || (route.name === "management" && managementMode === "recipes")) {
       void loadRecipes();
     }
-  }, [token, query, recipeScope, includeHidden, managementMode, route, language]);
+  }, [token, query, recipeScope, includeHidden, managementMode, managementRecipeView, managedRecipeAuthorId, route, language]);
 
   useEffect(() => {
     if (route.name === "management" && managementMode === "users" && isAdmin) {
@@ -885,9 +889,12 @@ export function App() {
       navigate("/recipes");
     }
     if (route.name === "management" && managementMode === "users" && user && !isAdmin) {
-      setManagementMode("unverified");
+      setManagementMode("recipes");
     }
-  }, [route, token, language, user, isModerator, isAdmin, managementMode]);
+    if (route.name === "management" && managementMode === "backup" && user && !isSuperadmin) {
+      setManagementMode("recipes");
+    }
+  }, [route, token, language, user, isModerator, isAdmin, isSuperadmin, managementMode]);
 
   useEffect(() => {
     if (route.name !== "changelog" || changelogMarkdown) {
@@ -928,8 +935,11 @@ export function App() {
     }
     if (route.name === "management") {
       params.set("include_hidden", "true");
-      if (managementMode === "unverified") {
+      if (managementRecipeView === "unverified" && !managedRecipeAuthorId) {
         params.set("unverified", "true");
+      }
+      if (managedRecipeAuthorId) {
+        params.set("author_id", String(managedRecipeAuthorId));
       }
     }
 
@@ -1102,7 +1112,7 @@ export function App() {
         setNotice("Upravljanje je dostupno samo moderatorima i administratorima.");
         return;
       }
-      setManagementMode("unverified");
+      setManagementMode("recipes");
       setRecipeScope("all");
       navigate("/management");
     }
@@ -1299,6 +1309,24 @@ export function App() {
     }
   }
 
+  async function hardDeleteRecipeFromList(recipe: RecipeListItem) {
+    if (!token || !window.confirm(`Trajno obrisati recept "${recipe.title}"? Ovu radnju nije moguće poništiti.`)) {
+      return;
+    }
+    try {
+      const headers = new Headers({ Authorization: `Bearer ${token}` });
+      const response = await fetch(`${apiBaseUrl}/recipes/${recipe.id}`, { method: "DELETE", headers });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new ApiError(payload?.detail ?? `Request failed with ${response.status}`, response.status);
+      }
+      setNotice("Recept je trajno obrisan.");
+      await loadRecipes();
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
   async function updateManagedUserRole(managedUser: ManagedUser, role: Role) {
     if (!token) {
       return;
@@ -1329,6 +1357,61 @@ export function App() {
       );
       setManagedUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       setNotice(banned ? "Korisnik je blokiran." : "Korisnik je odblokiran.");
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
+  async function resetManagedUserPassword(managedUser: ManagedUser) {
+    if (!token) {
+      return;
+    }
+    const password = window.prompt(`Nova lozinka za ${managedUser.display_name} (minimalno 8 znakova):`);
+    if (!password) {
+      return;
+    }
+    try {
+      await apiRequest<ManagedUser>(
+        `/users/${managedUser.id}/password`,
+        { method: "PATCH", body: JSON.stringify({ password }) },
+        token,
+      );
+      setNotice("Lozinka korisnika je promijenjena.");
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
+  function showManagedUserRecipes(managedUser: ManagedUser) {
+    setManagedRecipeAuthorId(managedUser.id);
+    setManagementRecipeView("latest");
+    setManagementMode("recipes");
+    setNotice(`Prikazujem recepte korisnika ${managedUser.display_name}.`);
+  }
+
+  async function downloadRecipeBackup() {
+    if (!token) {
+      return;
+    }
+    try {
+      const headers = new Headers({ Authorization: `Bearer ${token}` });
+      const response = await fetch(`${apiBaseUrl}/recipes/backup`, { headers });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new ApiError(payload?.detail ?? `Request failed with ${response.status}`, response.status);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const filename = disposition.match(/filename="?([^";]+)"?/)?.[1] ?? `backup_${Date.now()}.zip`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setNotice("Backup recepata je preuzet.");
     } catch (error) {
       setAppError((error as Error).message);
     }
@@ -1651,20 +1734,13 @@ export function App() {
                     ))}
                   </div>
                 ) : (
-                  <div class="segmented-control" aria-label="Upravljanje receptima">
+                  <div class="segmented-control" aria-label="Upravljanje">
                     <button
                       type="button"
-                      class={managementMode === "unverified" ? "active" : ""}
-                      onClick={() => setManagementMode("unverified")}
+                      class={managementMode === "recipes" ? "active" : ""}
+                      onClick={() => setManagementMode("recipes")}
                     >
-                      Neprovjereni recepti
-                    </button>
-                    <button
-                      type="button"
-                      class={managementMode === "latest" ? "active" : ""}
-                      onClick={() => setManagementMode("latest")}
-                    >
-                      Zadnji recepti
+                      Recepti
                     </button>
                     {isAdmin ? (
                       <button
@@ -1673,6 +1749,15 @@ export function App() {
                         onClick={() => setManagementMode("users")}
                       >
                         Korisnici
+                      </button>
+                    ) : null}
+                    {isSuperadmin ? (
+                      <button
+                        type="button"
+                        class={managementMode === "backup" ? "active" : ""}
+                        onClick={() => setManagementMode("backup")}
+                      >
+                        Backup
                       </button>
                     ) : null}
                   </div>
@@ -1689,6 +1774,35 @@ export function App() {
                     <span>Prikaži skrivene</span>
                   </label>
                 ) : null}
+                {route.name === "management" && managementMode === "recipes" ? (
+                  <div class="segmented-control compact-control" aria-label="Recepti za upravljanje">
+                    <button
+                      type="button"
+                      class={managementRecipeView === "unverified" && !managedRecipeAuthorId ? "active" : ""}
+                      onClick={() => {
+                        setManagedRecipeAuthorId(null);
+                        setManagementRecipeView("unverified");
+                      }}
+                    >
+                      Neprovjereni
+                    </button>
+                    <button
+                      type="button"
+                      class={managementRecipeView === "latest" && !managedRecipeAuthorId ? "active" : ""}
+                      onClick={() => {
+                        setManagedRecipeAuthorId(null);
+                        setManagementRecipeView("latest");
+                      }}
+                    >
+                      Zadnji
+                    </button>
+                    {managedRecipeAuthorId ? (
+                      <button type="button" class="active" onClick={() => setManagedRecipeAuthorId(null)}>
+                        Recepti korisnika ×
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
                 {route.name === "management" && managementMode === "users" ? (
                   <input
                     class="user-search"
@@ -1700,7 +1814,18 @@ export function App() {
                 ) : null}
               </div>
 
-              {route.name === "management" && managementMode === "users" ? (
+              {route.name === "management" && managementMode === "backup" ? (
+                <div class="panel backup-panel">
+                  <h2>Backup svih recepata</h2>
+                  <p>
+                    Backup kreira ZIP s mapom po vremenu izrade, podmapama po kategorijama, Markdown datotekama recepata,
+                    pripadajućim slikama i uputom za vraćanje u bazu.
+                  </p>
+                  <button type="button" class="primary" onClick={downloadRecipeBackup}>
+                    Preuzmi backup ZIP
+                  </button>
+                </div>
+              ) : route.name === "management" && managementMode === "users" ? (
                 <div class="user-management-list panel">
                   {managedUsers.map((managedUser) => {
                     const roles = assignableRoles(user);
@@ -1744,6 +1869,21 @@ export function App() {
                           onClick={() => updateManagedUserBan(managedUser)}
                         >
                           {managedUser.banned ? "Odblokiraj" : "Blokiraj"}
+                        </button>
+                        <button
+                          type="button"
+                          class="secondary small-action"
+                          disabled={!canManage}
+                          onClick={() => resetManagedUserPassword(managedUser)}
+                        >
+                          Lozinka
+                        </button>
+                        <button
+                          type="button"
+                          class="secondary small-action"
+                          onClick={() => showManagedUserRecipes(managedUser)}
+                        >
+                          Recepti
                         </button>
                       </article>
                     );
@@ -1803,6 +1943,15 @@ export function App() {
                             Uredi
                           </button>
                         ) : null}
+                        {recipe.can_delete ? (
+                          <button
+                            type="button"
+                            class="secondary small-action danger-action"
+                            onClick={() => hardDeleteRecipeFromList(recipe)}
+                          >
+                            Obriši trajno
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </article>
@@ -1813,7 +1962,7 @@ export function App() {
                       ? "Nema tvojih recepata."
                       : recipeScope === "favorites"
                         ? "Nema omiljenih recepata."
-                        : route.name === "management" && managementMode === "unverified"
+                        : route.name === "management" && managementRecipeView === "unverified" && !managedRecipeAuthorId
                           ? "Nema neprovjerenih recepata."
                           : "Nema recepata za prikaz."}
                   </div>

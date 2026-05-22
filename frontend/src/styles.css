@@ -484,6 +484,10 @@ h3 {
   opacity: 0.42;
 }
 
+.compact-control {
+  margin-left: auto;
+}
+
 .inline-check {
   justify-content: flex-start;
 }
@@ -557,6 +561,23 @@ h3 {
 .small-action {
   padding: 8px 11px;
   font-size: 0.82rem;
+}
+
+.danger-action {
+  color: #9a2d1f;
+  border-color: rgba(154, 45, 31, 0.28);
+}
+
+.backup-panel {
+  display: grid;
+  gap: 14px;
+  max-width: 760px;
+}
+
+.backup-panel p {
+  margin: 0;
+  color: #5f5140;
+  line-height: 1.65;
 }
 
 .recipe-card-meta {
