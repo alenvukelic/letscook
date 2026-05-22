@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.8.1
+
+- Filter Svi recepti sada je kompaktniji odabir i zauzima manje mjesta.
+- Odabir jezika sada prikazuje zastavu i naziv jezika.
+- Na prikazu recepta sastojci su premješteni prije pripreme.
+
 ## 0.8.0
 
 - Aplikacija sada ima kompaktniji gornji header prilagođen mobitelima.

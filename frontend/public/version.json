@@ -1,8 +1,8 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.1",
   "changes": [
-    "Aplikacija sada ima kompaktniji gornji header prilagođen mobitelima.",
-    "Glavni meni se otvara preko ikone s tri crte, a jezik i korisnički meni su desno.",
-    "Pretraga, filteri i odabir prikaza recepata nalaze se u jednom retku ispod headera."
+    "Filter Svi recepti sada je kompaktniji odabir i zauzima manje mjesta.",
+    "Odabir jezika sada prikazuje zastavu i naziv jezika.",
+    "Na prikazu recepta sastojci su premješteni prije pripreme."
   ]
 }

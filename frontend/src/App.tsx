@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.8.0";
+const appVersion = "0.8.1";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -179,9 +179,9 @@ const navItems = [
 ];
 
 const languages = [
-  { code: "hr", label: "🇭🇷" },
-  { code: "en", label: "🇬🇧" },
-  { code: "de", label: "🇩🇪" },
+  { code: "hr", label: "🇭🇷 Hrvatski" },
+  { code: "en", label: "🇬🇧 English" },
+  { code: "de", label: "🇩🇪 Deutsch" },
 ];
 
 const roleLabels: Record<Role, string> = {
@@ -1727,23 +1727,16 @@ export function App() {
                       placeholder="Pretraži naslove i sastojke"
                       onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
                     />
-                    <div class="segmented-control" aria-label="Prikaz recepata">
-                      {[
-                        ["all", "Svi"],
-                        ["mine", "Moji recepti"],
-                        ["favorites", "Omiljeni"],
-                      ].map(([value, label]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          class={recipeScope === value ? "active" : ""}
-                          disabled={value !== "all" && !user}
-                          onClick={() => setRecipeScope(value as RecipeScope)}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+                    <label class="scope-select" aria-label="Prikaz recepata">
+                      <select
+                        value={recipeScope}
+                        onChange={(event) => setRecipeScope((event.currentTarget as HTMLSelectElement).value as RecipeScope)}
+                      >
+                        <option value="all">Svi recepti</option>
+                        <option value="mine" disabled={!user}>Moji recepti</option>
+                        <option value="favorites" disabled={!user}>Omiljeni</option>
+                      </select>
+                    </label>
                   </>
                 ) : (
                   <div class="segmented-control" aria-label="Upravljanje">
@@ -2058,6 +2051,21 @@ export function App() {
                     </section>
                   ) : null}
 
+                  <section class="ingredients-panel panel detail-ingredients-inline">
+                    <p class="eyebrow">Sastojci</p>
+                    <div class="ingredients-stack">
+                      {recipeDetail.ingredients.map((ingredient) => (
+                        <div key={ingredient.id} class="ingredient-chip-row">
+                          <strong class="ingredient-amount">{formatIngredientAmount(ingredient)}</strong>
+                          <span class="ingredient-text">
+                            {ingredient.ingredient_name}
+                            {ingredient.note ? <span class="muted"> ({ingredient.note})</span> : null}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
                   <section class="story-block">
                     <h3>Priprema</h3>
                     <div
@@ -2075,25 +2083,6 @@ export function App() {
                 <div class="empty-card">{loadingDetail ? "Učitavam recept..." : "Recept nije pronađen."}</div>
               )}
             </div>
-
-            {recipeDetail ? (
-              <aside class="detail-right">
-                <div class="ingredients-panel panel">
-                  <p class="eyebrow">Sastojci</p>
-                  <div class="ingredients-stack">
-                    {recipeDetail.ingredients.map((ingredient) => (
-                      <div key={ingredient.id} class="ingredient-chip-row">
-                        <strong class="ingredient-amount">{formatIngredientAmount(ingredient)}</strong>
-                        <span class="ingredient-text">
-                          {ingredient.ingredient_name}
-                          {ingredient.note ? <span class="muted"> ({ingredient.note})</span> : null}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </aside>
-            ) : null}
           </section>
         ) : null}
 

@@ -296,6 +296,7 @@ label {
   display: grid;
   gap: 8px;
   padding: 12px;
+  background: #fffcf7;
 }
 
 .page-context {
@@ -366,7 +367,7 @@ h3 {
 
 .language-picker {
   width: auto;
-  min-width: 58px;
+  min-width: 138px;
   align-items: center;
   gap: 0;
   color: #6b5f4e;
@@ -440,6 +441,7 @@ h3 {
   right: 0;
   z-index: 30;
   width: 360px;
+  background: #fffcf7;
 }
 
 .panel {
@@ -448,6 +450,11 @@ h3 {
   padding: 18px;
   background: rgba(255, 252, 247, 0.9);
   box-shadow: 0 18px 38px rgba(73, 49, 26, 0.08);
+}
+
+.main-menu-popover.panel,
+.profile-popover.panel {
+  background: #fffcf7;
 }
 
 .version-refresh-banner {
@@ -512,6 +519,20 @@ h3 {
   overflow-x: auto;
   border-radius: 18px;
   backdrop-filter: blur(14px);
+}
+
+.scope-select {
+  width: auto;
+  min-width: 150px;
+  flex: 0 0 auto;
+}
+
+.scope-select select {
+  width: auto;
+  min-width: 150px;
+  border-radius: 999px;
+  padding: 10px 34px 10px 12px;
+  font-weight: 800;
 }
 
 .segmented-control {
@@ -831,7 +852,7 @@ h3 {
 }
 
 .detail-view {
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
   align-items: start;
 }
@@ -844,6 +865,10 @@ h3 {
 .ingredients-panel {
   position: sticky;
   top: 118px;
+}
+
+.detail-ingredients-inline {
+  position: static;
 }
 
 .meta-strip {

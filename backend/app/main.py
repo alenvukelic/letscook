@@ -9,7 +9,7 @@ from app.core.config import settings
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="0.8.0",
+        version="0.8.1",
         description="LetsCook API foundation",
     )
 
