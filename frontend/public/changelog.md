@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.8.2
+
+- Odabir jezika u headeru sada prikazuje samo zastavu, a izbornik prikazuje i nazive jezika.
+- Filteri su premješteni u izbornik s prikazom, opsegom recepata, sortiranjem i smjerom.
+- Search polje sada ostaje desno od filter ikone u kompaktnom retku.
+
 ## 0.8.1
 
 - Filter Svi recepti sada je kompaktniji odabir i zauzima manje mjesta.

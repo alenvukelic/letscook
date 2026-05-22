@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.8.1";
+const appVersion = "0.8.2";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -34,6 +34,8 @@ type ProfilePanelMode = "profile" | "password";
 type RecipeScope = "all" | "mine" | "favorites";
 type ManagementMode = "recipes" | "users" | "backup";
 type ManagementRecipeView = "unverified" | "latest";
+type RecipeSortBy = "created" | "title" | "likes" | "complexity";
+type SortDirection = "asc" | "desc";
 
 type User = {
   id: number;
@@ -179,10 +181,23 @@ const navItems = [
 ];
 
 const languages = [
-  { code: "hr", label: "🇭🇷 Hrvatski" },
-  { code: "en", label: "🇬🇧 English" },
-  { code: "de", label: "🇩🇪 Deutsch" },
+  { code: "hr", flag: "🇭🇷", label: "Hrvatski" },
+  { code: "en", flag: "🇬🇧", label: "English" },
+  { code: "de", flag: "🇩🇪", label: "Deutsch" },
 ];
+
+const recipeScopeLabels: Record<RecipeScope, string> = {
+  all: "Svi recepti",
+  mine: "Samo moji",
+  favorites: "Omiljeni",
+};
+
+const recipeSortLabels: Record<RecipeSortBy, string> = {
+  created: "Prvo najnoviji",
+  title: "Abecedom",
+  likes: "Najviše likeova",
+  complexity: "Po kompleksnosti",
+};
 
 const roleLabels: Record<Role, string> = {
   user: "Korisnik",
@@ -709,12 +724,16 @@ export function App() {
   const [query, setQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
   const [recipeScope, setRecipeScope] = useState<RecipeScope>("all");
+  const [recipeSortBy, setRecipeSortBy] = useState<RecipeSortBy>("created");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [includeHidden, setIncludeHidden] = useState(false);
   const [managementMode, setManagementMode] = useState<ManagementMode>("recipes");
   const [managementRecipeView, setManagementRecipeView] = useState<ManagementRecipeView>("unverified");
   const [managedRecipeAuthorId, setManagedRecipeAuthorId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("tiles");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPanelMode, setAuthPanelMode] = useState<AuthPanelMode>("login");
   const [profilePanelMode, setProfilePanelMode] = useState<ProfilePanelMode>("profile");
@@ -742,6 +761,20 @@ export function App() {
     user?.role === "moderator" || user?.role === "administrator" || user?.role === "superadmin";
   const isAdmin = user?.role === "administrator" || user?.role === "superadmin";
   const isSuperadmin = user?.role === "superadmin";
+  const selectedLanguage = languages.find((item) => item.code === language) ?? languages[0];
+  const sortedRecipes = [...recipes].sort((left, right) => {
+    let comparison = 0;
+    if (recipeSortBy === "title") {
+      comparison = left.title.localeCompare(right.title, "hr", { sensitivity: "base" });
+    } else if (recipeSortBy === "likes") {
+      comparison = left.likes_count - right.likes_count;
+    } else if (recipeSortBy === "complexity") {
+      comparison = left.author_complexity - right.author_complexity;
+    } else {
+      comparison = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+    }
+    return sortDirection === "asc" ? comparison : -comparison;
+  });
   const profileAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1506,17 +1539,35 @@ export function App() {
           </div>
 
           <div class="header-right">
-            <label class="language-picker" aria-label="Jezik aplikacije">
-              <select
+            <div class="language-picker">
+              <button
+                type="button"
+                class="language-trigger"
                 aria-label="Jezik aplikacije"
-                value={language}
-                onChange={(event) => setLanguage((event.currentTarget as HTMLSelectElement).value)}
+                aria-expanded={languageOpen}
+                onClick={() => setLanguageOpen((current) => !current)}
               >
-                {languages.map((item) => (
-                  <option key={item.code} value={item.code}>{item.label}</option>
-                ))}
-              </select>
-            </label>
+                {selectedLanguage.flag}
+              </button>
+              {languageOpen ? (
+                <div class="language-popover panel">
+                  {languages.map((item) => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      class={item.code === language ? "active" : ""}
+                      onClick={() => {
+                        setLanguage(item.code);
+                        setLanguageOpen(false);
+                      }}
+                    >
+                      <span>{item.flag}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
 
             <div class="profile-area" ref={profileAreaRef}>
               <button
@@ -1703,23 +1754,62 @@ export function App() {
               <div class="filter-bar panel">
                 {route.name === "list" ? (
                   <>
-                    <div class="view-toggles" aria-label="Način prikaza">
+                    <div class="filter-menu-area">
                       <button
                         type="button"
-                        class={`toggle-chip icon-toggle ${viewMode === "tiles" ? "active" : ""}`}
-                        onClick={() => setViewMode("tiles")}
-                        aria-label="Prikaz kartica"
+                        class={`filter-trigger ${filterOpen ? "active" : ""}`}
+                        onClick={() => setFilterOpen((current) => !current)}
+                        aria-expanded={filterOpen}
+                        aria-label="Filteri"
                       >
-                        ▦
+                        ⛃
                       </button>
-                      <button
-                        type="button"
-                        class={`toggle-chip icon-toggle ${viewMode === "list" ? "active" : ""}`}
-                        onClick={() => setViewMode("list")}
-                        aria-label="Prikaz liste"
-                      >
-                        ☰
-                      </button>
+                      {filterOpen ? (
+                        <div class="filter-popover panel">
+                          <label>
+                            Prikaz
+                            <select
+                              value={viewMode}
+                              onChange={(event) => setViewMode((event.currentTarget as HTMLSelectElement).value as ViewMode)}
+                            >
+                              <option value="tiles">Kartice</option>
+                              <option value="list">Lista</option>
+                            </select>
+                          </label>
+                          <label>
+                            Recepti
+                            <select
+                              value={recipeScope}
+                              onChange={(event) => setRecipeScope((event.currentTarget as HTMLSelectElement).value as RecipeScope)}
+                            >
+                              <option value="all">{recipeScopeLabels.all}</option>
+                              <option value="mine" disabled={!user}>{recipeScopeLabels.mine}</option>
+                              <option value="favorites" disabled={!user}>{recipeScopeLabels.favorites}</option>
+                            </select>
+                          </label>
+                          <label>
+                            Sortiranje
+                            <select
+                              value={recipeSortBy}
+                              onChange={(event) => setRecipeSortBy((event.currentTarget as HTMLSelectElement).value as RecipeSortBy)}
+                            >
+                              {Object.entries(recipeSortLabels).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            Smjer
+                            <select
+                              value={sortDirection}
+                              onChange={(event) => setSortDirection((event.currentTarget as HTMLSelectElement).value as SortDirection)}
+                            >
+                              <option value="desc">Silazno</option>
+                              <option value="asc">Uzlazno</option>
+                            </select>
+                          </label>
+                        </div>
+                      ) : null}
                     </div>
                     <input
                       class="search-input"
@@ -1727,16 +1817,6 @@ export function App() {
                       placeholder="Pretraži naslove i sastojke"
                       onInput={(event) => setQuery((event.currentTarget as HTMLInputElement).value)}
                     />
-                    <label class="scope-select" aria-label="Prikaz recepata">
-                      <select
-                        value={recipeScope}
-                        onChange={(event) => setRecipeScope((event.currentTarget as HTMLSelectElement).value as RecipeScope)}
-                      >
-                        <option value="all">Svi recepti</option>
-                        <option value="mine" disabled={!user}>Moji recepti</option>
-                        <option value="favorites" disabled={!user}>Omiljeni</option>
-                      </select>
-                    </label>
                   </>
                 ) : (
                   <div class="segmented-control" aria-label="Upravljanje">
@@ -1897,7 +1977,7 @@ export function App() {
                 </div>
               ) : (
               <div class={viewMode === "tiles" ? "recipe-grid" : "recipe-list-rows"}>
-                {recipes.map((recipe) => (
+                {sortedRecipes.map((recipe) => (
                   <article key={recipe.id} class={`recipe-card ${viewMode}`}>
                     <button
                       type="button"

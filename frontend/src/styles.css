@@ -366,18 +366,66 @@ h3 {
 }
 
 .language-picker {
+  position: relative;
   width: auto;
-  min-width: 138px;
+  min-width: 0;
   align-items: center;
   gap: 0;
   color: #6b5f4e;
   font-size: 1rem;
 }
 
-.language-picker select {
-  width: auto;
-  padding: 8px 9px;
+.language-trigger,
+.filter-trigger {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(238, 111, 47, 0.18);
   border-radius: 999px;
+  background: #fffcf7;
+  font-size: 1.25rem;
+}
+
+.filter-trigger.active,
+.language-trigger:hover,
+.filter-trigger:hover {
+  color: #fffaf4;
+  background: var(--accent);
+}
+
+.language-popover,
+.filter-popover {
+  position: absolute;
+  z-index: 35;
+  display: grid;
+  gap: 8px;
+  background: #fffcf7;
+}
+
+.language-popover {
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 180px;
+  padding: 10px;
+}
+
+.language-popover button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: #4f3d2b;
+  background: transparent;
+  font-weight: 800;
+  text-align: left;
+}
+
+.language-popover button.active,
+.language-popover button:hover {
+  background: #fff2e1;
 }
 
 .secondary {
@@ -453,7 +501,9 @@ h3 {
 }
 
 .main-menu-popover.panel,
-.profile-popover.panel {
+.profile-popover.panel,
+.language-popover.panel,
+.filter-popover.panel {
   background: #fffcf7;
 }
 
@@ -521,18 +571,27 @@ h3 {
   backdrop-filter: blur(14px);
 }
 
-.scope-select {
-  width: auto;
-  min-width: 150px;
+.filter-menu-area {
+  position: relative;
   flex: 0 0 auto;
 }
 
-.scope-select select {
-  width: auto;
-  min-width: 150px;
-  border-radius: 999px;
-  padding: 10px 34px 10px 12px;
-  font-weight: 800;
+.filter-popover {
+  top: calc(100% + 10px);
+  left: 0;
+  width: min(320px, calc(100vw - 24px));
+  padding: 14px;
+}
+
+.filter-popover label {
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.filter-popover select {
+  min-height: 38px;
+  padding: 8px 10px;
 }
 
 .segmented-control {

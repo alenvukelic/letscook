@@ -1,8 +1,8 @@
 {
-  "version": "0.8.1",
+  "version": "0.8.2",
   "changes": [
-    "Filter Svi recepti sada je kompaktniji odabir i zauzima manje mjesta.",
-    "Odabir jezika sada prikazuje zastavu i naziv jezika.",
-    "Na prikazu recepta sastojci su premješteni prije pripreme."
+    "Odabir jezika u headeru sada prikazuje samo zastavu, a izbornik prikazuje i nazive jezika.",
+    "Filteri su premješteni u izbornik s prikazom, opsegom recepata, sortiranjem i smjerom.",
+    "Search polje sada ostaje desno od filter ikone u kompaktnom retku."
   ]
 }
