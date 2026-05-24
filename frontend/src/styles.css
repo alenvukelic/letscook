@@ -566,7 +566,7 @@ h3 {
   top: 66px;
   z-index: 15;
   padding: 10px;
-  overflow-x: auto;
+  overflow: visible;
   border-radius: 18px;
   backdrop-filter: blur(14px);
 }

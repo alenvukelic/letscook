@@ -1,8 +1,7 @@
 {
-  "version": "0.8.2",
+  "version": "0.8.3",
   "changes": [
-    "Odabir jezika u headeru sada prikazuje samo zastavu, a izbornik prikazuje i nazive jezika.",
-    "Filteri su premješteni u izbornik s prikazom, opsegom recepata, sortiranjem i smjerom.",
-    "Search polje sada ostaje desno od filter ikone u kompaktnom retku."
+    "Izbornici u headeru sada se automatski zatvaraju klikom izvan njih.",
+    "Otvaranje filter izbornika sada radi pouzdano."
   ]
 }

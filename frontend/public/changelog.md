@@ -1,5 +1,10 @@
 # LetsCook Changelog
 
+## 0.8.3
+
+- Izbornici u headeru sada se automatski zatvaraju klikom izvan njih.
+- Otvaranje filter izbornika sada radi pouzdano.
+
 ## 0.8.2
 
 - Odabir jezika u headeru sada prikazuje samo zastavu, a izbornik prikazuje i nazive jezika.

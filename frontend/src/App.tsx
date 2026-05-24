@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.8.2";
+const appVersion = "0.8.3";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -776,6 +776,9 @@ export function App() {
     return sortDirection === "asc" ? comparison : -comparison;
   });
   const profileAreaRef = useRef<HTMLDivElement>(null);
+  const menuAreaRef = useRef<HTMLDivElement>(null);
+  const languageAreaRef = useRef<HTMLDivElement>(null);
+  const filterAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const syncRoute = () => setRoute(parseRoute());
@@ -825,18 +828,30 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!profileOpen) {
+    if (!menuOpen && !languageOpen && !filterOpen && !profileOpen) {
       return;
     }
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && !profileAreaRef.current?.contains(target)) {
+      if (!(target instanceof Node)) {
+        return;
+      }
+      if (!menuAreaRef.current?.contains(target)) {
+        setMenuOpen(false);
+      }
+      if (!languageAreaRef.current?.contains(target)) {
+        setLanguageOpen(false);
+      }
+      if (!filterAreaRef.current?.contains(target)) {
+        setFilterOpen(false);
+      }
+      if (!profileAreaRef.current?.contains(target)) {
         setProfileOpen(false);
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [profileOpen]);
+  }, [menuOpen, languageOpen, filterOpen, profileOpen]);
 
   useEffect(() => {
     const onScroll = () => setHeaderCompact(window.scrollY > 40);
@@ -1498,13 +1513,18 @@ export function App() {
     <main class="app-shell">
       <div class="page-shell">
         <header class={`page-header ${headerCompact ? "compact-header" : ""}`}>
-          <div class="header-left">
+          <div class="header-left" ref={menuAreaRef}>
             <button
               type="button"
               class="hamburger-button"
               aria-label="Glavni meni"
               aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((current) => !current)}
+              onClick={() => {
+                setLanguageOpen(false);
+                setFilterOpen(false);
+                setProfileOpen(false);
+                setMenuOpen((current) => !current);
+              }}
             >
               <span />
               <span />
@@ -1539,13 +1559,18 @@ export function App() {
           </div>
 
           <div class="header-right">
-            <div class="language-picker">
+            <div class="language-picker" ref={languageAreaRef}>
               <button
                 type="button"
                 class="language-trigger"
                 aria-label="Jezik aplikacije"
                 aria-expanded={languageOpen}
-                onClick={() => setLanguageOpen((current) => !current)}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setFilterOpen(false);
+                  setProfileOpen(false);
+                  setLanguageOpen((current) => !current);
+                }}
               >
                 {selectedLanguage.flag}
               </button>
@@ -1573,7 +1598,12 @@ export function App() {
               <button
                 type="button"
                 class="profile-trigger"
-                onClick={() => setProfileOpen((current) => !current)}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setLanguageOpen(false);
+                  setFilterOpen(false);
+                  setProfileOpen((current) => !current);
+                }}
                 aria-expanded={profileOpen}
                 aria-label={user ? "Korisnički izbornik" : "Prijava"}
               >
@@ -1754,11 +1784,16 @@ export function App() {
               <div class="filter-bar panel">
                 {route.name === "list" ? (
                   <>
-                    <div class="filter-menu-area">
+                    <div class="filter-menu-area" ref={filterAreaRef}>
                       <button
                         type="button"
                         class={`filter-trigger ${filterOpen ? "active" : ""}`}
-                        onClick={() => setFilterOpen((current) => !current)}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setLanguageOpen(false);
+                          setProfileOpen(false);
+                          setFilterOpen((current) => !current);
+                        }}
                         aria-expanded={filterOpen}
                         aria-label="Filteri"
                       >
