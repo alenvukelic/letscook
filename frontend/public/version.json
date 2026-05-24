@@ -1,7 +1,8 @@
 {
-  "version": "0.8.3",
+  "version": "0.8.2",
   "changes": [
-    "Vraćena je glavna narančasta boja aplikacije.",
-    "Uklonjena je zelena tema koja je slučajno pregazila LetsCook stil."
+    "Odabir jezika u headeru sada prikazuje samo zastavu, a izbornik prikazuje i nazive jezika.",
+    "Filteri su premješteni u izbornik s prikazom, opsegom recepata, sortiranjem i smjerom.",
+    "Search polje sada ostaje desno od filter ikone u kompaktnom retku."
   ]
 }

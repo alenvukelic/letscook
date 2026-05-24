@@ -1,10 +1,5 @@
 # LetsCook Changelog
 
-## 0.8.3
-
-- Vraćena je glavna narančasta boja aplikacije.
-- Uklonjena je zelena tema koja je slučajno pregazila LetsCook stil.
-
 ## 0.8.2
 
 - Odabir jezika u headeru sada prikazuje samo zastavu, a izbornik prikazuje i nazive jezika.

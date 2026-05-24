@@ -2142,17 +2142,17 @@ h3,
 
 /* Mobile app direction inspired by the provided reference */
 :root {
-  --accent: #ee6f2f;
-  --accent-dark: #bc4616;
-  --accent-soft: #ffe1cd;
-  --surface-0: #fff7ef;
+  --accent: #5a8f24;
+  --accent-dark: #24440c;
+  --accent-soft: #edf5e6;
+  --surface-0: #f7faf4;
   --surface-1: #ffffff;
-  --surface-2: #fff0e4;
-  --surface-3: #ffd9bd;
-  --line: rgba(188, 70, 22, 0.16);
-  --line-strong: rgba(238, 111, 47, 0.42);
-  --text: #21170f;
-  --text-muted: #745d4d;
+  --surface-2: #f1f5ed;
+  --surface-3: #e5eedb;
+  --line: rgba(36, 68, 12, 0.14);
+  --line-strong: rgba(90, 143, 36, 0.38);
+  --text: #17250d;
+  --text-muted: #64705d;
   color: var(--text);
   background: var(--surface-0);
 }
@@ -2162,7 +2162,7 @@ body {
 }
 
 .app-shell {
-  background: linear-gradient(180deg, #ffffff 0%, #fff1e6 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f6faef 100%);
 }
 
 .page-shell {
