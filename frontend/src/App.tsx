@@ -730,11 +730,7 @@ export function App() {
   const [managementMode, setManagementMode] = useState<ManagementMode>("recipes");
   const [managementRecipeView, setManagementRecipeView] = useState<ManagementRecipeView>("unverified");
   const [managedRecipeAuthorId, setManagedRecipeAuthorId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>(() =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 900px)").matches
-      ? "tiles"
-      : "list",
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>("tiles");
   const [menuOpen, setMenuOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
@@ -1518,18 +1514,6 @@ export function App() {
               <span class="brand-mark">LC</span>
               <span class="brand-text">LetsCook</span>
             </button>
-            <nav class="desktop-nav" aria-label="Glavna navigacija">
-              {navItems.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  class="desktop-nav-link"
-                  onClick={() => navigate(item.path)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </nav>
             {menuOpen ? (
               <nav class="main-menu-popover panel" aria-label="Glavni meni">
                 {[...navItems, ...(isModerator ? [{ label: "Upravljanje", icon: "U", action: "management" }] : [])].map((item) => (
@@ -1738,7 +1722,7 @@ export function App() {
                       ? "Upravljanje"
                       : route.name === "changelog"
                         ? "Changelog"
-                        : "Recepti"}
+                        : "Novi i najzanimljiviji recepti"}
           </h1>
         </section>
 
@@ -1914,35 +1898,6 @@ export function App() {
                   />
                 ) : null}
               </div>
-
-              {route.name === "list" && sortedRecipes[0] ? (
-                <section class="desktop-feature">
-                  <button
-                    type="button"
-                    class="desktop-feature-media"
-                    onClick={() => navigate(`/recipes/${sortedRecipes[0].id}`)}
-                  >
-                    {sortedRecipes[0].main_image_url ? (
-                      <img src={sortedRecipes[0].main_image_url} alt={sortedRecipes[0].title} />
-                    ) : (
-                      <span>{sortedRecipes[0].title.slice(0, 2)}</span>
-                    )}
-                  </button>
-                  <div class="desktop-feature-copy">
-                    <p class="feature-kicker">Editors' collection</p>
-                    <h2>{sortedRecipes[0].title}</h2>
-                    <p>
-                      {sortedRecipes[0].category_name ?? "Recipe"} by {sortedRecipes[0].author_name}.
-                      Ready in {sortedRecipes[0].prep_time_minutes} minutes for {sortedRecipes[0].servings} servings.
-                    </p>
-                    <div class="feature-actions">
-                      <span>{sortedRecipes[0].prep_time_minutes} min</span>
-                      <span>{sortedRecipes[0].rating_average ?? "New"} rating</span>
-                      <span>{sortedRecipes[0].likes_count} saved</span>
-                    </div>
-                  </div>
-                </section>
-              ) : null}
 
               {route.name === "management" && managementMode === "backup" ? (
                 <div class="panel backup-panel">
