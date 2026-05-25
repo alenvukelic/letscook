@@ -69,9 +69,9 @@ class RecipeListItem(BaseModel):
     id: int
     title: str
     language: str
-    servings: float
-    prep_time_minutes: int
-    author_complexity: int
+    servings: float | None
+    prep_time_minutes: int | None
+    author_complexity: int | None
     likes_count: int
     rating_average: float | None
     ratings_count: int

@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.8.3";
+const appVersion = "0.8.4";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -73,9 +73,9 @@ type RecipeListItem = {
   id: number;
   title: string;
   language: string;
-  servings: number;
-  prep_time_minutes: number;
-  author_complexity: number;
+  servings: number | null;
+  prep_time_minutes: number | null;
+  author_complexity: number | null;
   likes_count: number;
   rating_average: number | null;
   ratings_count: number;
@@ -308,9 +308,9 @@ function formFromRecipe(recipe: RecipeDetail): RecipeFormState {
     category_id: recipe.category_id ? String(recipe.category_id) : "",
     language: recipe.language,
     content_markdown: contentMarkdown,
-    prep_time_minutes: String(recipe.prep_time_minutes),
-    servings: String(recipe.servings),
-    author_complexity: String(recipe.author_complexity),
+    prep_time_minutes: recipe.prep_time_minutes == null ? "" : String(recipe.prep_time_minutes),
+    servings: recipe.servings == null ? "" : String(recipe.servings),
+    author_complexity: recipe.author_complexity == null ? "" : String(recipe.author_complexity),
     ingredients: recipe.ingredients.length
       ? recipe.ingredients.map((ingredient) => ({
           ingredient_id: ingredient.ingredient_id,
@@ -327,7 +327,10 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString("hr-HR");
 }
 
-function formatServing(value: number): string {
+function formatServing(value: number | null): string {
+  if (value == null) {
+    return "-";
+  }
   return Number.isInteger(value) ? String(value) : value.toLocaleString("hr-HR");
 }
 
@@ -443,15 +446,18 @@ function renderRecipeMarkdown(markdown: string, skippedFirstImageUrl?: string | 
 }
 
 function RecipeMetaStrip({ recipe, className = "" }: { recipe: RecipeListItem; className?: string }) {
+  const complexity = recipe.author_complexity;
   return (
     <div class={`recipe-facts ${className}`.trim()} aria-label="Glavne informacije recepta">
       <span title="Za koliko osoba">🍴 {formatServing(recipe.servings)} osoba</span>
-      <span title="Vrijeme pripreme">◷ {recipe.prep_time_minutes} minuta</span>
+      <span title="Vrijeme pripreme">◷ {formatServing(recipe.prep_time_minutes)} min</span>
       <span title="Sviđanja" class={recipe.user_liked ? "liked-fact" : ""}>♥ {recipe.likes_count}</span>
       <span title="Kompleksnost" class="fact-complexity complexity-inline">
-        {Array.from({ length: 5 }, (_, index) => (
-          <span key={index} class={`spoon-box ${index < recipe.author_complexity ? "filled" : ""}`}>🥄</span>
-        ))}
+        {complexity == null
+          ? "-"
+          : Array.from({ length: 5 }, (_, index) => (
+              <span key={index} class={`spoon-box ${index < complexity ? "filled" : ""}`}>🥄</span>
+            ))}
       </span>
       <span title="Ocjena" class="fact-rating">
         {Array.from({ length: 5 }, (_, index) => (
@@ -464,7 +470,8 @@ function RecipeMetaStrip({ recipe, className = "" }: { recipe: RecipeListItem; c
 }
 
 function ComplexityPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const numericValue = Number(value) || 1;
+  const numericValue = Number(value);
+  const hasValue = Number.isFinite(numericValue) && numericValue >= 1;
   return (
     <div class="complexity-picker" role="group" aria-label="Kompleksnost">
       {Array.from({ length: 5 }, (_, index) => {
@@ -473,7 +480,7 @@ function ComplexityPicker({ value, onChange }: { value: string; onChange: (value
           <button
             key={nextValue}
             type="button"
-            class={nextValue <= numericValue ? "selected" : ""}
+            class={hasValue && nextValue <= numericValue ? "selected" : ""}
             onClick={() => onChange(String(nextValue))}
             aria-label={`Kompleksnost ${nextValue}`}
           >
@@ -769,7 +776,20 @@ export function App() {
     } else if (recipeSortBy === "likes") {
       comparison = left.likes_count - right.likes_count;
     } else if (recipeSortBy === "complexity") {
-      comparison = left.author_complexity - right.author_complexity;
+      const leftComplexity = left.author_complexity;
+      const rightComplexity = right.author_complexity;
+      if (leftComplexity == null && rightComplexity == null) {
+        comparison = 0;
+      } else if (leftComplexity == null) {
+        comparison = 1;
+      } else if (rightComplexity == null) {
+        comparison = -1;
+      } else {
+        comparison = leftComplexity - rightComplexity;
+      }
+      if (leftComplexity == null || rightComplexity == null) {
+        return comparison;
+      }
     } else {
       comparison = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
     }
@@ -1278,6 +1298,12 @@ export function App() {
 
     setSaving(true);
     setAppError(null);
+
+    if (!formState.prep_time_minutes || !formState.servings || !formState.author_complexity) {
+      setSaving(false);
+      setAppError("Porcije, vrijeme i kompleksnost moraš upisati prije spremanja.");
+      return;
+    }
 
     const payload = {
       title: formState.title,

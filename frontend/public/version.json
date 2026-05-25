@@ -1,7 +1,7 @@
 {
-  "version": "0.8.3",
+  "version": "0.8.4",
   "changes": [
-    "Izbornici u headeru sada se automatski zatvaraju klikom izvan njih.",
-    "Otvaranje filter izbornika sada radi pouzdano."
+    "Uvezeni recepti više ne prikazuju izmišljene porcije, vrijeme i težinu.",
+    "Recepti bez težine sada uvijek idu na kraj kod sortiranja po kompleksnosti."
   ]
 }

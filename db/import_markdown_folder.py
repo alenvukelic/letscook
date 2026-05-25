@@ -276,11 +276,13 @@ def import_recipe(
 
         cursor.execute(
             """
-            insert into recipes (author_id, category_id, title, language, steps_html, servings, author_complexity)
-            values (%s, %s, %s, 'hr', %s, %s, %s)
+            insert into recipes (
+                author_id, category_id, title, language, steps_html, prep_time_minutes, servings, author_complexity
+            )
+            values (%s, %s, %s, 'hr', %s, %s, %s, %s)
             returning id
             """,
-            (author_id, category_id, recipe.title, steps_html, Decimal("8"), 2),
+            (author_id, category_id, recipe.title, steps_html, None, None, None),
         )
         recipe_id = int(cursor.fetchone()[0])
         cursor.execute(

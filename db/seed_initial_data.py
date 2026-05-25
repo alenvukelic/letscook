@@ -378,8 +378,8 @@ class RecipeSeed:
     category_slug: str
     tag_slugs: tuple[str, ...]
     title_translations: dict[str, str]
-    servings: Decimal
-    complexity: int
+    servings: Decimal | None
+    complexity: int | None
 
 
 SELECTED_RECIPES = [
@@ -390,8 +390,8 @@ SELECTED_RECIPES = [
         category_slug="baking",
         tag_slugs=("yeast-dough", "oven-baked"),
         title_translations={"en": "Quick Savory Crescent Rolls", "de": "Schnelle herzhafte Kipferl"},
-        servings=Decimal("8"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - pregledati obavezno.doc",
@@ -400,8 +400,8 @@ SELECTED_RECIPES = [
         category_slug="desserts",
         tag_slugs=("cookies", "fruit"),
         title_translations={"en": "Cantucci Almond Biscuits", "de": "Cantucci Mandelgebäck"},
-        servings=Decimal("10"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - pregledati obavezno.doc",
@@ -410,8 +410,8 @@ SELECTED_RECIPES = [
         category_slug="desserts",
         tag_slugs=("cake", "fruit"),
         title_translations={"en": "Cherry Clafoutis", "de": "Clafoutis mit Sauerkirschen"},
-        servings=Decimal("6"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - pregledati obavezno.doc",
@@ -420,8 +420,8 @@ SELECTED_RECIPES = [
         category_slug="baking",
         tag_slugs=("traditional",),
         title_translations={"en": "Homemade Fried Piroshki", "de": "Hausgemachte Piroggen"},
-        servings=Decimal("6"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - DESERTI - 1 dio.doc",
@@ -430,8 +430,8 @@ SELECTED_RECIPES = [
         category_slug="desserts",
         tag_slugs=("torte", "fruit"),
         title_translations={"en": "Jaffa Torte", "de": "Jaffa-Torte"},
-        servings=Decimal("12"),
-        complexity=4,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - DESERTI - 1 dio.doc",
@@ -440,8 +440,8 @@ SELECTED_RECIPES = [
         category_slug="desserts",
         tag_slugs=("cake", "fruit"),
         title_translations={"en": "Dark Chocolate Cherry Cake", "de": "Dunkler Schokoladenkuchen mit Kirschen"},
-        servings=Decimal("8"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - DESERTI - 2 dio.doc",
@@ -450,8 +450,8 @@ SELECTED_RECIPES = [
         category_slug="desserts",
         tag_slugs=("yeast-dough", "torte"),
         title_translations={"en": "Slovenian Potica Roll", "de": "Slowenische Potica"},
-        servings=Decimal("10"),
-        complexity=4,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - GLAVNA JELA - 1 dio (2).docx",
@@ -460,8 +460,8 @@ SELECTED_RECIPES = [
         category_slug="main-dishes",
         tag_slugs=("meat", "oven-baked"),
         title_translations={"en": "Stuffed Meatloaf", "de": "Gefüllter Hackbraten"},
-        servings=Decimal("6"),
-        complexity=3,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - GLAVNA JELA - 1 dio (2).docx",
@@ -470,8 +470,8 @@ SELECTED_RECIPES = [
         category_slug="drinks",
         tag_slugs=("citrus", "preserve"),
         title_translations={"en": "Lemon Syrup", "de": "Zitronensirup"},
-        servings=Decimal("20"),
-        complexity=3,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - GLAVNA JELA - 1 dio (2).docx",
@@ -480,8 +480,8 @@ SELECTED_RECIPES = [
         category_slug="main-dishes",
         tag_slugs=("pasta", "meat", "oven-baked"),
         title_translations={"en": "Baked Pasta with Mushrooms and Ground Meat", "de": "Überbackene Nudeln mit Champignons und Hackfleisch"},
-        servings=Decimal("4"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - GLAVNA JELA - 2 dio (2).docx",
@@ -490,8 +490,8 @@ SELECTED_RECIPES = [
         category_slug="main-dishes",
         tag_slugs=("pasta", "meat"),
         title_translations={"en": "Creamy Carbonara Pasta", "de": "Cremige Carbonara-Pasta"},
-        servings=Decimal("3"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
     RecipeSeed(
         source_file="Recepti - GLAVNA JELA - 2 dio (2).docx",
@@ -500,8 +500,8 @@ SELECTED_RECIPES = [
         category_slug="main-dishes",
         tag_slugs=("pasta", "meat"),
         title_translations={"en": "Pan-Fried Šurlice", "de": "Šurlice aus der Pfanne"},
-        servings=Decimal("4"),
-        complexity=2,
+        servings=None,
+        complexity=None,
     ),
 ]
 
@@ -1133,8 +1133,10 @@ def main() -> None:
             with conn.cursor() as cursor:
                 cursor.execute(
                     """
-                    insert into recipes (author_id, category_id, title, language, steps_html, servings, author_complexity)
-                    values (%s, %s, %s, 'hr', %s, %s, %s)
+                    insert into recipes (
+                        author_id, category_id, title, language, steps_html, prep_time_minutes, servings, author_complexity
+                    )
+                    values (%s, %s, %s, 'hr', %s, %s, %s, %s)
                     returning id
                     """,
                     (
@@ -1142,8 +1144,9 @@ def main() -> None:
                         category_ids[seed.category_slug],
                         seed.recipe_title_hr,
                         recipe["steps_html"],
-                        seed.servings,
-                        seed.complexity,
+                        None,
+                        None,
+                        None,
                     ),
                 )
                 recipe_id = int(cursor.fetchone()[0])

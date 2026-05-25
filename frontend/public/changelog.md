@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.8.4
+
+- Uvezeni recepti više ne prikazuju izmišljene porcije, vrijeme i težinu.
+- Recepti bez težine sada uvijek idu na kraj kod sortiranja po kompleksnosti.
+- U editoru se prazna polja za porcije, vrijeme i kompleksnost više ne popunjavaju lažnim vrijednostima.
+
 ## 0.8.3
 
 - Izbornici u headeru sada se automatski zatvaraju klikom izvan njih.
