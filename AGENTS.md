@@ -14,6 +14,7 @@
 ## Workflow Rules
 - Until product version `1.0.0`, completed code changes should be committed locally, pushed to GitHub, and deployed to `ubuntu-dev` without waiting for an extra confirmation, unless the user explicitly says not to.
 - `commit` or `komit` still explicitly means push work to GitHub, but the current standing instruction is to push and update `ubuntu-dev` after each completed change batch until `1.0.0`.
+- Versioning should also create the matching GitHub tag for the release commit when a new semantic version is declared.
 - Use semantic three-part versioning as `major.minor.patch`, for example `0.2.0`, and keep user-visible version/changelog information current in the application footer.
 - Before committing any completed change batch, propose the intended semantic version to the user and allow them to correct it; commit only after the version is confirmed or corrected.
 - Changelog entries shown to regular users should be in Croatian and describe practical product changes in simple language.
