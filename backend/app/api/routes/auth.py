@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -30,6 +30,7 @@ def serialize_user(user: User) -> UserSummary:
         display_name=user.display_name,
         avatar_url=user.avatar_url,
         role=user.role,
+        last_login_at=user.last_login_at,
     )
 
 
@@ -57,6 +58,7 @@ async def login(
     access_token = create_access_token(
         str(user.id), {"role": user.role.value}, expires_delta=expires_delta
     )
+    user.last_login_at = datetime.now(UTC)
     await log_action(
         session,
         code="auth.logged_in",

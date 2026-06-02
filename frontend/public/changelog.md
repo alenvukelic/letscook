@@ -1,5 +1,12 @@
 # LetsCook Changelog
 
+## 0.9.0
+
+- Backupovi se sada spremaju na server i ostaju dostupni u povijesti.
+- Može se podesiti raspored backupova i broj zadržanih kopija.
+- Upravljanje sada prikazuje audit zapise i log gostujućih zahtjeva.
+- Korisnici u listi sada prikazuju i vrijeme zadnje prijave.
+
 ## 0.8.4
 
 - Uvezeni recepti više ne prikazuju izmišljene porcije, vrijeme i težinu.

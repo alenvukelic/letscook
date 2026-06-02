@@ -1,7 +1,7 @@
 {
-  "version": "0.8.4",
+  "version": "0.9.0",
   "changes": [
-    "Uvezeni recepti više ne prikazuju izmišljene porcije, vrijeme i težinu.",
-    "Recepti bez težine sada uvijek idu na kraj kod sortiranja po kompleksnosti."
+    "Backupovi se sada spremaju na server i mogu se ponovno preuzeti iz povijesti.",
+    "Upravljanje sada prikazuje audit zapise i log gostujućih zahtjeva."
   ]
 }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from app.models import UserRole
@@ -34,6 +36,7 @@ class UserSummary(BaseModel):
     display_name: str
     avatar_url: str | None
     role: UserRole
+    last_login_at: datetime | None = None
 
 
 class TokenResponse(BaseModel):

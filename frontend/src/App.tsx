@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.8.4";
+const appVersion = "0.9.0";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -32,7 +32,7 @@ type ViewMode = "tiles" | "list";
 type AuthPanelMode = "login" | "register";
 type ProfilePanelMode = "profile" | "password";
 type RecipeScope = "all" | "mine" | "favorites";
-type ManagementMode = "recipes" | "users" | "backup";
+type ManagementMode = "recipes" | "users" | "backup" | "audit";
 type ManagementRecipeView = "unverified" | "latest";
 type RecipeSortBy = "created" | "title" | "likes" | "complexity";
 type SortDirection = "asc" | "desc";
@@ -43,6 +43,7 @@ type User = {
   display_name: string;
   avatar_url: string | null;
   role: Role;
+  last_login_at: string | null;
 };
 
 type ManagedUser = User & {
@@ -145,6 +146,56 @@ type RecipeFormState = {
 type VersionInfo = {
   version: string;
   changes: string[];
+};
+
+type BackupSchedule = {
+  enabled: boolean;
+  cron_expression: string;
+  retention_count: number;
+  last_run_at: string | null;
+  next_run_at: string | null;
+};
+
+type BackupFile = {
+  filename: string;
+  created_at: string;
+  updated_at: string;
+  byte_size: number;
+  recipe_count: number;
+  trigger: string;
+  reason: string | null;
+  download_url: string;
+};
+
+type AuditActor = {
+  id: number | null;
+  display_name: string | null;
+  email: string | null;
+  role: Role | null;
+};
+
+type AuditAction = {
+  id: number;
+  created_at: string;
+  ip_address: string | null;
+  code: string;
+  description: string;
+  actor: AuditActor | null;
+  target: AuditActor | null;
+  extra: Record<string, unknown>;
+};
+
+type GuestRequest = {
+  id: string;
+  created_at: string;
+  method: string;
+  path: string;
+  status_code: number;
+  ip_address: string | null;
+  user_agent: string | null;
+  browser: string | null;
+  operating_system: string | null;
+  device_type: string | null;
 };
 
 type Route =
@@ -325,6 +376,16 @@ function formFromRecipe(recipe: RecipeDetail): RecipeFormState {
 
 function formatDate(value: string): string {
   return new Date(value).toLocaleString("hr-HR");
+}
+
+function formatBytes(value: number): string {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatServing(value: number | null): string {
@@ -725,6 +786,10 @@ export function App() {
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
+  const [backupFiles, setBackupFiles] = useState<BackupFile[]>([]);
+  const [backupSchedule, setBackupSchedule] = useState<BackupSchedule | null>(null);
+  const [auditActions, setAuditActions] = useState<AuditAction[]>([]);
+  const [guestRequests, setGuestRequests] = useState<GuestRequest[]>([]);
   const [changelogMarkdown, setChangelogMarkdown] = useState("");
   const [availableVersion, setAvailableVersion] = useState<VersionInfo | null>(null);
   const [language, setLanguage] = useState(localStorage.getItem(languageStorageKey) ?? "hr");
@@ -747,6 +812,8 @@ export function App() {
   const [headerCompact, setHeaderCompact] = useState(false);
   const [loadingRecipes, setLoadingRecipes] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
@@ -931,6 +998,18 @@ export function App() {
   }, [token, userQuery, managementMode, route, isAdmin]);
 
   useEffect(() => {
+    if (route.name === "management" && managementMode === "backup" && isAdmin) {
+      void loadBackupManagement();
+    }
+  }, [token, managementMode, route, isAdmin]);
+
+  useEffect(() => {
+    if (route.name === "management" && managementMode === "audit" && isAdmin) {
+      void loadAuditManagement();
+    }
+  }, [token, managementMode, route, isAdmin]);
+
+  useEffect(() => {
     if (route.name === "detail" || route.name === "edit") {
       void loadRecipeDetail(route.recipeId);
       return;
@@ -959,7 +1038,10 @@ export function App() {
     if (route.name === "management" && managementMode === "users" && user && !isAdmin) {
       setManagementMode("recipes");
     }
-    if (route.name === "management" && managementMode === "backup" && user && !isSuperadmin) {
+    if (route.name === "management" && managementMode === "backup" && user && !isAdmin) {
+      setManagementMode("recipes");
+    }
+    if (route.name === "management" && managementMode === "audit" && user && !isAdmin) {
       setManagementMode("recipes");
     }
   }, [route, token, language, user, isModerator, isAdmin, isSuperadmin, managementMode]);
@@ -1049,6 +1131,54 @@ export function App() {
       }
     } finally {
       setLoadingUsers(false);
+    }
+  }
+
+  async function loadBackupManagement() {
+    if (!token || !isAdmin) {
+      return;
+    }
+    setLoadingBackups(true);
+    setAppError(null);
+    try {
+      const [schedule, backups] = await Promise.all([
+        apiRequest<BackupSchedule>("/recipes/backup-schedule", {}, token),
+        apiRequest<BackupFile[]>("/recipes/backups", {}, token),
+      ]);
+      setBackupSchedule(schedule);
+      setBackupFiles(backups);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno.");
+      } else {
+        setAppError((error as Error).message);
+      }
+    } finally {
+      setLoadingBackups(false);
+    }
+  }
+
+  async function loadAuditManagement() {
+    if (!token || !isAdmin) {
+      return;
+    }
+    setLoadingAudit(true);
+    setAppError(null);
+    try {
+      const [actions, guests] = await Promise.all([
+        apiRequest<AuditAction[]>("/audit/actions?limit=100", {}, token),
+        apiRequest<GuestRequest[]>("/audit/guests?limit=100", {}, token),
+      ]);
+      setAuditActions(actions);
+      setGuestRequests(guests);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        requireAuth("Sesija je istekla. Prijavi se ponovno.");
+      } else {
+        setAppError((error as Error).message);
+      }
+    } finally {
+      setLoadingAudit(false);
     }
   }
 
@@ -1466,7 +1596,7 @@ export function App() {
   }
 
   async function downloadRecipeBackup() {
-    if (!token) {
+    if (!token || !isAdmin) {
       return;
     }
     try {
@@ -1488,6 +1618,50 @@ export function App() {
       link.remove();
       URL.revokeObjectURL(url);
       setNotice("Backup recepata je preuzet.");
+      await loadBackupManagement();
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
+  async function downloadStoredBackup(filename: string) {
+    if (!token || !isAdmin) {
+      return;
+    }
+    try {
+      const headers = new Headers({ Authorization: `Bearer ${token}` });
+      const response = await fetch(`${apiBaseUrl}/recipes/backups/${filename}`, { headers });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+        throw new ApiError(payload?.detail ?? `Request failed with ${response.status}`, response.status);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setAppError((error as Error).message);
+    }
+  }
+
+  async function saveBackupSchedule() {
+    if (!token || !isAdmin || !backupSchedule) {
+      return;
+    }
+    try {
+      const updated = await apiRequest<BackupSchedule>(
+        "/recipes/backup-schedule",
+        { method: "PUT", body: JSON.stringify(backupSchedule) },
+        token,
+      );
+      setBackupSchedule(updated);
+      setNotice("Raspored backupova je spremljen.");
+      await loadBackupManagement();
     } catch (error) {
       setAppError((error as Error).message);
     }
@@ -1897,13 +2071,22 @@ export function App() {
                         Korisnici
                       </button>
                     ) : null}
-                    {isSuperadmin ? (
+                    {isAdmin ? (
                       <button
                         type="button"
                         class={managementMode === "backup" ? "active" : ""}
                         onClick={() => setManagementMode("backup")}
                       >
                         Backup
+                      </button>
+                    ) : null}
+                    {isAdmin ? (
+                      <button
+                        type="button"
+                        class={managementMode === "audit" ? "active" : ""}
+                        onClick={() => setManagementMode("audit")}
+                      >
+                        Audit
                       </button>
                     ) : null}
                   </div>
@@ -1964,12 +2147,146 @@ export function App() {
                 <div class="panel backup-panel">
                   <h2>Backup svih recepata</h2>
                   <p>
-                    Backup kreira ZIP s mapom po vremenu izrade, podmapama po kategorijama, Markdown datotekama recepata,
-                    pripadajućim slikama i uputom za vraćanje u bazu.
+                    Backup se sprema na server, a ovdje ostaje i popis ranijih datoteka za ponovno preuzimanje.
                   </p>
-                  <button type="button" class="primary" onClick={downloadRecipeBackup}>
-                    Preuzmi backup ZIP
-                  </button>
+                  {backupSchedule ? (
+                    <>
+                      <div class="backup-schedule-grid">
+                        <label>
+                          Uključi raspored
+                          <input
+                            type="checkbox"
+                            checked={backupSchedule.enabled}
+                            onChange={(event) =>
+                              setBackupSchedule({
+                                ...backupSchedule,
+                                enabled: (event.currentTarget as HTMLInputElement).checked,
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          Cron izraz
+                          <input
+                            value={backupSchedule.cron_expression}
+                            onInput={(event) =>
+                              setBackupSchedule({
+                                ...backupSchedule,
+                                cron_expression: (event.currentTarget as HTMLInputElement).value,
+                              })
+                            }
+                            placeholder="0 2 * * *"
+                          />
+                        </label>
+                        <label>
+                          Retencija
+                          <input
+                            type="number"
+                            min="1"
+                            value={backupSchedule.retention_count}
+                            onInput={(event) =>
+                              setBackupSchedule({
+                                ...backupSchedule,
+                                retention_count: Number((event.currentTarget as HTMLInputElement).value) || 1,
+                              })
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div class="backup-schedule-status">
+                        <span>
+                          Zadnje pokretanje: {backupSchedule.last_run_at ? formatDate(backupSchedule.last_run_at) : "-"}
+                        </span>
+                        <span>
+                          Sljedeće pokretanje: {backupSchedule.next_run_at ? formatDate(backupSchedule.next_run_at) : "-"}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div class="empty-card">Učitavam raspored backupova...</div>
+                  )}
+                  <div class="backup-actions">
+                    <button type="button" class="primary" onClick={downloadRecipeBackup}>
+                      Stvori novi backup
+                    </button>
+                    <button type="button" class="secondary" onClick={saveBackupSchedule} disabled={!backupSchedule}>
+                      Spremi raspored
+                    </button>
+                  </div>
+                  <h3>Prethodni backupovi</h3>
+                  {loadingBackups ? (
+                    <div class="empty-card">Učitavam backupove...</div>
+                  ) : backupFiles.length ? (
+                    <div class="backup-history-list">
+                      {backupFiles.map((file) => (
+                        <article key={file.filename} class="backup-history-row">
+                          <div>
+                            <strong>{file.filename}</strong>
+                            <span>{formatDate(file.created_at)}</span>
+                            <small>
+                              {formatBytes(file.byte_size)} · {file.recipe_count} recepata · {file.trigger}
+                              {file.reason ? ` · ${file.reason}` : ""}
+                            </small>
+                          </div>
+                          <button type="button" class="secondary small-action" onClick={() => downloadStoredBackup(file.filename)}>
+                            Preuzmi
+                          </button>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div class="empty-card">Još nema spremljenih backupova.</div>
+                  )}
+                </div>
+              ) : route.name === "management" && managementMode === "audit" ? (
+                <div class="panel audit-panel">
+                  <h2>Audit zapis</h2>
+                  <p>Prikazuje posljednje prijave, izmjene recepata, reakcije korisnika i zahtjeve gostiju.</p>
+                  <div class="audit-columns">
+                    <section>
+                      <h3>Radnje korisnika</h3>
+                      {loadingAudit ? (
+                        <div class="empty-card">Učitavam audit zapis...</div>
+                      ) : auditActions.length ? (
+                        <div class="audit-list">
+                          {auditActions.map((entry) => (
+                            <article key={entry.id} class="audit-row">
+                              <strong>{entry.code}</strong>
+                              <span>{formatDate(entry.created_at)}</span>
+                              <small>
+                                {entry.actor?.display_name ?? "-"}
+                                {entry.target?.display_name ? ` → ${entry.target.display_name}` : ""}
+                                {entry.ip_address ? ` · ${entry.ip_address}` : ""}
+                              </small>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div class="empty-card">Nema audit zapisa.</div>
+                      )}
+                    </section>
+                    <section>
+                      <h3>Gosti i uređaji</h3>
+                      {loadingAudit ? (
+                        <div class="empty-card">Učitavam log gostiju...</div>
+                      ) : guestRequests.length ? (
+                        <div class="audit-list">
+                          {guestRequests.map((entry) => (
+                            <article key={entry.id} class="audit-row">
+                              <strong>{entry.method} {entry.path}</strong>
+                              <span>{formatDate(entry.created_at)}</span>
+                              <small>
+                                {entry.browser ?? "Nepoznati preglednik"} · {entry.operating_system ?? "Nepoznat OS"} · {entry.device_type ?? "nepoznat uređaj"}
+                                {entry.ip_address ? ` · ${entry.ip_address}` : ""}
+                              </small>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <div class="empty-card">Nema guest log zapisa.</div>
+                      )}
+                    </section>
+                  </div>
                 </div>
               ) : route.name === "management" && managementMode === "users" ? (
                 <div class="user-management-list panel">
@@ -1989,6 +2306,9 @@ export function App() {
                           <div>
                             <strong>{managedUser.display_name}</strong>
                             <span>{managedUser.email}</span>
+                            <small>
+                              Zadnja prijava: {managedUser.last_login_at ? formatDate(managedUser.last_login_at) : "-"}
+                            </small>
                           </div>
                         </div>
                         <span class={`status-tag ${managedUser.banned ? "warning-tag" : ""}`}>

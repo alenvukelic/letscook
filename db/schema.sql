@@ -21,6 +21,7 @@ CREATE TABLE users (
     banned BOOLEAN NOT NULL DEFAULT FALSE,
     banned_id BIGINT,
     email_verified_at TIMESTAMPTZ,
+    last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT users_oauth_unique UNIQUE (oauth_provider, oauth_subject),

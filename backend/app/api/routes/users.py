@@ -29,6 +29,7 @@ def serialize_user(user: User) -> ManagedUser:
         avatar_url=user.avatar_url,
         role=user.role,
         banned=user.banned,
+        last_login_at=user.last_login_at,
         created_at=user.created_at,
     )
 

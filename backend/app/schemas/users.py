@@ -14,6 +14,7 @@ class ManagedUser(BaseModel):
     avatar_url: str | None
     role: UserRole
     banned: bool
+    last_login_at: datetime | None
     created_at: datetime
 
 

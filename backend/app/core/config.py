@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 60
     refresh_token_days: int = 30
     media_root: str = "../var/media"
+    backup_root: str = "../var/backups"
+    guest_log_root: str = "../var/logs"
 
     @cached_property
     def cors_origins(self) -> list[str]:
@@ -29,6 +31,14 @@ class Settings(BaseSettings):
     @cached_property
     def media_root_path(self) -> str:
         return str((Path(__file__).resolve().parents[2] / self.media_root).resolve())
+
+    @cached_property
+    def backup_root_path(self) -> str:
+        return str((Path(__file__).resolve().parents[2] / self.backup_root).resolve())
+
+    @cached_property
+    def guest_log_root_path(self) -> str:
+        return str((Path(__file__).resolve().parents[2] / self.guest_log_root).resolve())
 
 
 settings = Settings()
