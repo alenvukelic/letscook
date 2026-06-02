@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.9.4
+
+- Backup raspored je pregledniji i Cron/retencija su sada ispod automatizacije.
+- Povijest backupova je jasnija, a svaki backup se prikazuje uredno i čitljivo.
+- Upravljanje korisnicima je složeno u jedan red s ikonama i tooltipovima za akcije.
+
 ## 0.9.3
 
 - Popravljen je deploy jer backend sada sam stvara media mapu prije pokretanja testa.

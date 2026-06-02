@@ -1,7 +1,7 @@
 {
-  "version": "0.9.3",
+  "version": "0.9.4",
   "changes": [
-    "Greška s media direktorijem na CI runneru je ispravljena pa deploy više ne pada pri pokretanju backend testa.",
-    "Server sada sam stvara nedostajući /var/media direktorij prije podizanja aplikacije."
+    "Backupovi sada imaju pregledniji raspored, jasniji popis i više ne stvaraju zbijen tekst u povijesti.",
+    "Upravljanje korisnicima je poravnato u jedan red s preglednijim akcijama i tooltipovima."
   ]
 }

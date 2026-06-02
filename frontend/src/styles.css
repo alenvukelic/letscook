@@ -713,12 +713,18 @@ h3 {
   max-width: 760px;
 }
 
+.backup-storage-note {
+  color: #7d674e;
+  font-weight: 700;
+}
+
 .backup-panel p {
   margin: 0;
   color: #5f5140;
   line-height: 1.65;
 }
 
+.backup-schedule-stack,
 .backup-schedule-grid,
 .backup-schedule-status,
 .backup-actions {
@@ -747,6 +753,10 @@ h3 {
   gap: 8px;
 }
 
+.backup-schedule-stack {
+  gap: 14px;
+}
+
 .audit-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -758,7 +768,18 @@ h3 {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.backup-schedule-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
 .backup-schedule-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.backup-schedule-stack > label {
   display: grid;
   gap: 8px;
 }
@@ -776,7 +797,7 @@ h3 {
 
 .backup-history-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .audit-table-wrap {
@@ -827,26 +848,42 @@ h3 {
 
 .backup-history-row {
   display: grid;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
   padding: 12px 14px;
   border: 1px solid rgba(238, 111, 47, 0.14);
   border-radius: 16px;
   background: rgba(255, 250, 244, 0.76);
+  align-items: start;
 }
 
-.backup-history-row div {
+.backup-history-main {
+  display: grid;
+  gap: 6px;
   min-width: 0;
 }
 
-.backup-history-row strong,
+.backup-history-main strong,
 .audit-table td strong {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.backup-history-row span,
-.backup-history-row small {
+.backup-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   color: #8a6047;
+  font-size: 0.92rem;
+}
+
+.backup-history-meta span,
+.backup-history-main small {
+  color: #8a6047;
+}
+
+.backup-history-row button {
+  align-self: start;
 }
 
 .recipe-card-meta {
@@ -994,39 +1031,69 @@ h3 {
   max-width: 280px;
 }
 
+.managed-user-grid-header,
 .managed-user-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 190px auto;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(210px, 1fr) minmax(160px, 0.8fr) minmax(190px, 0.9fr) minmax(340px, 1.3fr);
   gap: 14px;
   align-items: center;
+}
+
+.managed-user-grid-header {
+  padding: 0 12px;
+  color: #8a6047;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.managed-user-row {
   padding: 12px;
   border: 1px solid rgba(238, 111, 47, 0.14);
   border-radius: 20px;
   background: rgba(255, 250, 244, 0.76);
 }
 
-.managed-user-main {
-  display: flex;
+.managed-user-cell {
   min-width: 0;
+}
+
+.managed-user-identity {
+  display: flex;
   gap: 12px;
   align-items: center;
 }
 
-.managed-user-main div {
-  display: grid;
-  min-width: 0;
-}
-
-.managed-user-main span {
-  overflow: hidden;
+.managed-user-email,
+.managed-user-last-login {
   color: #8a6047;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.managed-user-main small {
-  color: #a07a58;
-  font-size: 0.82rem;
+.managed-user-role {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.managed-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.action-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-with-icon span[aria-hidden="true"] {
+  font-size: 0.98rem;
 }
 
 .managed-user-avatar {
@@ -1623,6 +1690,14 @@ h3 {
   .managed-user-row,
   .recipe-card-button.list {
     grid-template-columns: 1fr;
+  }
+
+  .managed-user-grid-header {
+    display: none;
+  }
+
+  .managed-user-actions {
+    justify-content: flex-start;
   }
 
   .ingredient-chip-row {

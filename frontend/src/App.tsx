@@ -863,6 +863,7 @@ export function App() {
   const [options, setOptions] = useState<RecipeFormOptions>({ categories: [], ingredients: [], units: [] });
   const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
+  const [managedUserRoleDrafts, setManagedUserRoleDrafts] = useState<Record<number, Role>>({});
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null);
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([]);
   const [backupSchedule, setBackupSchedule] = useState<BackupSchedule | null>(null);
@@ -1235,6 +1236,7 @@ export function App() {
     try {
       const list = await apiRequest<ManagedUser[]>(`/users?${params.toString()}`, {}, token);
       setManagedUsers(list);
+      setManagedUserRoleDrafts(Object.fromEntries(list.map((item) => [item.id, item.role])) as Record<number, Role>);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         requireAuth("Sesija je istekla. Prijavi se ponovno.");
@@ -2265,13 +2267,16 @@ export function App() {
                   <p>
                     Backup se prvo sprema na server. Ako želiš lokalnu kopiju, preuzmi je zasebno iz povijesti backupova.
                   </p>
+                  <small class="backup-storage-note">
+                    Backupovi se spremaju na server u <code>var/backups/recipes</code> unutar aplikacijskog direktorija.
+                  </small>
                   {backupSchedule ? (
                     <>
                       <div class="backup-help-box">
                         <strong>Automatizacija</strong>
                         <span>Ne trebaš znati cron. Odaberi jedan od prijedloga ili upiši svoj raspored ako trebaš nešto posebno.</span>
                       </div>
-                      <div class="backup-schedule-grid">
+                      <div class="backup-schedule-stack">
                         <label>
                           Automatizacija
                           <select
@@ -2296,38 +2301,40 @@ export function App() {
                               </option>
                             ))}
                             <option value="custom">Prilagođeno</option>
-                          </select>
-                        </label>
-                        <label>
-                          Cron izraz
-                          <input
-                            value={backupSchedule.cron_expression}
-                            onInput={(event) =>
-                              setBackupSchedule({
-                                ...backupSchedule,
-                                cron_expression: (event.currentTarget as HTMLInputElement).value,
-                              })
-                            }
-                            placeholder="0 2 * * *"
-                          />
-                          <small>Npr. `0 2 * * *` znači svaki dan u 02:00.</small>
-                        </label>
-                        <label>
-                          Retencija
-                          <input
-                            type="number"
-                            min="1"
-                            value={backupSchedule.retention_count}
-                            onInput={(event) =>
-                              setBackupSchedule({
-                                ...backupSchedule,
-                                retention_count: Number((event.currentTarget as HTMLInputElement).value) || 1,
-                              })
-                            }
-                          />
-                          <small>Broj kopija koje ostaju na serveru.</small>
-                        </label>
-                      </div>
+                            </select>
+                          </label>
+                        <div class="backup-schedule-grid">
+                          <label>
+                            Cron izraz
+                            <input
+                              value={backupSchedule.cron_expression}
+                              onInput={(event) =>
+                                setBackupSchedule({
+                                  ...backupSchedule,
+                                  cron_expression: (event.currentTarget as HTMLInputElement).value,
+                                })
+                              }
+                              placeholder="0 2 * * *"
+                            />
+                            <small>Npr. `0 2 * * *` znači svaki dan u 02:00.</small>
+                          </label>
+                          <label>
+                            Retencija
+                            <input
+                              type="number"
+                              min="1"
+                              value={backupSchedule.retention_count}
+                              onInput={(event) =>
+                                setBackupSchedule({
+                                  ...backupSchedule,
+                                  retention_count: Number((event.currentTarget as HTMLInputElement).value) || 1,
+                                })
+                              }
+                            />
+                            <small>Broj kopija koje ostaju na serveru.</small>
+                          </label>
+                        </div>
+                        </div>
                       <div class="backup-preset-list">
                         {backupSchedulePresets.map((preset) => (
                           <button
@@ -2367,13 +2374,15 @@ export function App() {
                     <div class="backup-history-list">
                       {backupFiles.map((file) => (
                         <article key={file.filename} class="backup-history-row">
-                          <div>
-                            <strong>{file.filename}</strong>
-                            <span>{formatDate(file.created_at)}</span>
-                            <small>
-                              {formatBytes(file.byte_size)} · {file.recipe_count} recepata · {file.trigger}
-                              {file.reason ? ` · ${file.reason}` : ""}
-                            </small>
+                          <div class="backup-history-main">
+                            <strong title={file.filename}>{file.filename}</strong>
+                            <div class="backup-history-meta">
+                              <span>{formatDate(file.created_at)}</span>
+                              <span>{formatBytes(file.byte_size)}</span>
+                              <span>{file.recipe_count} recepata</span>
+                              <span>{file.trigger === "manual" ? "ručni backup" : "automatizirani backup"}</span>
+                              {file.reason ? <span title={file.reason}>{file.reason}</span> : null}
+                            </div>
                           </div>
                           <button type="button" class="secondary small-action" onClick={() => downloadStoredBackup(file.filename)}>
                             Preuzmi
@@ -2476,12 +2485,19 @@ export function App() {
                 </div>
               ) : route.name === "management" && managementMode === "users" ? (
                 <div class="user-management-list panel">
+                  <div class="managed-user-grid-header" aria-hidden="true">
+                    <span>Korisničko ime</span>
+                    <span>Email</span>
+                    <span>Zadnja prijava</span>
+                    <span>Vrsta korisnika</span>
+                    <span>Akcije</span>
+                  </div>
                   {managedUsers.map((managedUser) => {
                     const roles = assignableRoles(user);
                     const canManage = managedUser.id !== user?.id && roles.includes(managedUser.role);
                     return (
                       <article key={managedUser.id} class="managed-user-row">
-                        <div class="managed-user-main">
+                        <div class="managed-user-cell managed-user-identity">
                           {managedUser.avatar_url ? (
                             <img class="managed-user-avatar" src={managedUser.avatar_url} alt={managedUser.display_name} />
                           ) : (
@@ -2489,54 +2505,83 @@ export function App() {
                               {managedUser.display_name.slice(0, 1).toUpperCase()}
                             </span>
                           )}
-                          <div>
-                            <strong>{managedUser.display_name}</strong>
-                            <span>{managedUser.email}</span>
-                            <small>
-                              Zadnja prijava: {managedUser.last_login_at ? formatDate(managedUser.last_login_at) : "-"}
-                            </small>
-                          </div>
+                          <strong>{managedUser.display_name}</strong>
                         </div>
-                        <span class={`status-tag ${managedUser.banned ? "warning-tag" : ""}`}>
-                          {managedUser.banned ? "blokiran" : roleLabels[managedUser.role]}
-                        </span>
-                        <select
-                          value={managedUser.role}
-                          disabled={!canManage}
-                          onChange={(event) => updateManagedUserRole(managedUser, (event.currentTarget as HTMLSelectElement).value as Role)}
-                        >
-                          {roles.map((role) => (
-                            <option key={role} value={role}>
-                              {roleLabels[role]}
-                            </option>
-                          ))}
-                          {!roles.includes(managedUser.role) ? (
-                            <option value={managedUser.role}>{roleLabels[managedUser.role]}</option>
-                          ) : null}
-                        </select>
-                        <button
-                          type="button"
-                          class="secondary small-action"
-                          disabled={!canManage}
-                          onClick={() => updateManagedUserBan(managedUser)}
-                        >
-                          {managedUser.banned ? "Odblokiraj" : "Blokiraj"}
-                        </button>
-                        <button
-                          type="button"
-                          class="secondary small-action"
-                          disabled={!canManage}
-                          onClick={() => resetManagedUserPassword(managedUser)}
-                        >
-                          Lozinka
-                        </button>
-                        <button
-                          type="button"
-                          class="secondary small-action"
-                          onClick={() => showManagedUserRecipes(managedUser)}
-                        >
-                          Recepti
-                        </button>
+                        <div class="managed-user-cell managed-user-email">{managedUser.email}</div>
+                        <div class="managed-user-cell managed-user-last-login">
+                          {managedUser.last_login_at ? formatDate(managedUser.last_login_at) : "-"}
+                        </div>
+                        <div class="managed-user-cell managed-user-role">
+                          <select
+                            value={managedUserRoleDrafts[managedUser.id] ?? managedUser.role}
+                            disabled={!canManage}
+                            title="Promijeni vrstu korisnika"
+                            aria-label={`Vrsta korisnika za ${managedUser.display_name}`}
+                            onChange={(event) =>
+                              setManagedUserRoleDrafts((current) => ({
+                                ...current,
+                                [managedUser.id]: (event.currentTarget as HTMLSelectElement).value as Role,
+                              }))
+                            }
+                          >
+                            {roles.map((role) => (
+                              <option key={role} value={role}>
+                                {roleLabels[role]}
+                              </option>
+                            ))}
+                            {!roles.includes(managedUser.role) ? (
+                              <option value={managedUser.role}>{roleLabels[managedUser.role]}</option>
+                            ) : null}
+                          </select>
+                          <span class={`status-tag ${managedUser.banned ? "warning-tag" : ""}`}>
+                            {managedUser.banned ? "blokiran" : roleLabels[managedUser.role]}
+                          </span>
+                        </div>
+                        <div class="managed-user-cell managed-user-actions">
+                          <button
+                            type="button"
+                            class="secondary small-action action-with-icon"
+                            disabled={!canManage}
+                            title={`Postavi novu lozinku za ${managedUser.display_name}`}
+                            aria-label={`Postavi lozinku za ${managedUser.display_name}`}
+                            onClick={() => resetManagedUserPassword(managedUser)}
+                          >
+                            <span aria-hidden="true">🔒</span>
+                            <span>Lozinka</span>
+                          </button>
+                          <button
+                            type="button"
+                            class="secondary small-action action-with-icon"
+                            disabled={!canManage || (managedUserRoleDrafts[managedUser.id] ?? managedUser.role) === managedUser.role}
+                            title={`Promijeni vrstu korisnika ${managedUser.display_name}`}
+                            aria-label={`Promijeni vrstu korisnika ${managedUser.display_name}`}
+                            onClick={() => updateManagedUserRole(managedUser, managedUserRoleDrafts[managedUser.id] ?? managedUser.role)}
+                          >
+                            <span aria-hidden="true">🔁</span>
+                            <span>Vrsta</span>
+                          </button>
+                          <button
+                            type="button"
+                            class="secondary small-action action-with-icon"
+                            disabled={!canManage}
+                            title={managedUser.banned ? `Odblokiraj korisnika ${managedUser.display_name}` : `Blokiraj korisnika ${managedUser.display_name}`}
+                            aria-label={managedUser.banned ? `Odblokiraj korisnika ${managedUser.display_name}` : `Blokiraj korisnika ${managedUser.display_name}`}
+                            onClick={() => updateManagedUserBan(managedUser)}
+                          >
+                            <span aria-hidden="true">⛔</span>
+                            <span>{managedUser.banned ? "Odblokiraj" : "Blokiraj"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            class="secondary small-action action-with-icon"
+                            title={`Pogledaj recepte korisnika ${managedUser.display_name}`}
+                            aria-label={`Pogledaj recepte korisnika ${managedUser.display_name}`}
+                            onClick={() => showManagedUserRecipes(managedUser)}
+                          >
+                            <span aria-hidden="true">📚</span>
+                            <span>Recepti</span>
+                          </button>
+                        </div>
                       </article>
                     );
                   })}
