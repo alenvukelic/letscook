@@ -726,6 +726,27 @@ h3 {
   gap: 12px;
 }
 
+.backup-help-box {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(238, 111, 47, 0.14);
+  border-radius: 16px;
+  background: rgba(255, 250, 244, 0.76);
+  color: #6f4527;
+}
+
+.backup-help-box span,
+.backup-schedule-grid small {
+  color: #8a6047;
+}
+
+.backup-preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .audit-toolbar {
   display: flex;
   flex-wrap: wrap;

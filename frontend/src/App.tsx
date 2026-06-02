@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.9.1";
+const appVersion = "0.9.2";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -167,6 +167,12 @@ type BackupSchedule = {
   next_run_at: string | null;
 };
 
+type BackupPreset = {
+  label: string;
+  value: string;
+  description: string;
+};
+
 type BackupFile = {
   filename: string;
   created_at: string;
@@ -219,6 +225,12 @@ type AuditRow = {
   browser: string;
   operatingSystem: string;
 };
+
+const backupSchedulePresets: BackupPreset[] = [
+  { label: "Svaki dan u 02:00", value: "0 2 * * *", description: "Preporučeno za većinu timova." },
+  { label: "Svaki dan u 14:00", value: "0 14 * * *", description: "Dodatna popodnevna kopija." },
+  { label: "Svaki ponedjeljak u 02:00", value: "0 2 * * 1", description: "Tjedna kopija za manje aktivne sustave." },
+];
 
 type Route =
   | { name: "list" }
@@ -959,6 +971,9 @@ export function App() {
       const comparison = compareAuditRows(left, right, auditSortBy);
       return auditSortDirection === "asc" ? comparison : -comparison;
     });
+  const selectedBackupPreset = backupSchedule
+    ? backupSchedulePresets.find((preset) => preset.value === backupSchedule.cron_expression) ?? null
+    : null;
   const profileAreaRef = useRef<HTMLDivElement>(null);
   const menuAreaRef = useRef<HTMLDivElement>(null);
   const languageAreaRef = useRef<HTMLDivElement>(null);
@@ -1701,29 +1716,17 @@ export function App() {
     setNotice(`Prikazujem recepte korisnika ${managedUser.display_name}.`);
   }
 
-  async function downloadRecipeBackup() {
+  async function createServerBackup() {
     if (!token || !isAdmin) {
       return;
     }
     try {
-      const headers = new Headers({ Authorization: `Bearer ${token}` });
-      const response = await fetch(`${apiBaseUrl}/recipes/backup`, { headers });
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-        throw new ApiError(payload?.detail ?? `Request failed with ${response.status}`, response.status);
-      }
-      const blob = await response.blob();
-      const disposition = response.headers.get("Content-Disposition") ?? "";
-      const filename = disposition.match(/filename="?([^";]+)"?/)?.[1] ?? `backup_${Date.now()}.zip`;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-      setNotice("Backup recepata je preuzet.");
+      const created = await apiRequest<BackupFile>(
+        "/recipes/backups",
+        { method: "POST" },
+        token,
+      );
+      setNotice(`Backup je spremljen na server: ${created.filename}.`);
       await loadBackupManagement();
     } catch (error) {
       setAppError((error as Error).message);
@@ -1771,6 +1774,13 @@ export function App() {
     } catch (error) {
       setAppError((error as Error).message);
     }
+  }
+
+  function setBackupPreset(cronExpression: string) {
+    if (!backupSchedule) {
+      return;
+    }
+    setBackupSchedule({ ...backupSchedule, enabled: true, cron_expression: cronExpression });
   }
 
   async function toggleRecipeLike() {
@@ -2253,23 +2263,40 @@ export function App() {
                 <div class="panel backup-panel">
                   <h2>Backup svih recepata</h2>
                   <p>
-                    Backup se sprema na server, a ovdje ostaje i popis ranijih datoteka za ponovno preuzimanje.
+                    Backup se prvo sprema na server. Ako želiš lokalnu kopiju, preuzmi je zasebno iz povijesti backupova.
                   </p>
                   {backupSchedule ? (
                     <>
+                      <div class="backup-help-box">
+                        <strong>Automatizacija</strong>
+                        <span>Ne trebaš znati cron. Odaberi jedan od prijedloga ili upiši svoj raspored ako trebaš nešto posebno.</span>
+                      </div>
                       <div class="backup-schedule-grid">
                         <label>
-                          Uključi raspored
-                          <input
-                            type="checkbox"
-                            checked={backupSchedule.enabled}
-                            onChange={(event) =>
-                              setBackupSchedule({
-                                ...backupSchedule,
-                                enabled: (event.currentTarget as HTMLInputElement).checked,
-                              })
-                            }
-                          />
+                          Automatizacija
+                          <select
+                            value={backupSchedule.enabled ? selectedBackupPreset?.value ?? "custom" : "off"}
+                            onChange={(event) => {
+                              const value = (event.currentTarget as HTMLSelectElement).value;
+                              if (value === "off") {
+                                setBackupSchedule({ ...backupSchedule, enabled: false });
+                                return;
+                              }
+                              if (value === "custom") {
+                                setBackupSchedule({ ...backupSchedule, enabled: true });
+                                return;
+                              }
+                              setBackupSchedule({ ...backupSchedule, enabled: true, cron_expression: value });
+                            }}
+                          >
+                            <option value="off">Isključeno</option>
+                            {backupSchedulePresets.map((preset) => (
+                              <option key={preset.value} value={preset.value} title={preset.description}>
+                                {preset.label}
+                              </option>
+                            ))}
+                            <option value="custom">Prilagođeno</option>
+                          </select>
                         </label>
                         <label>
                           Cron izraz
@@ -2283,6 +2310,7 @@ export function App() {
                             }
                             placeholder="0 2 * * *"
                           />
+                          <small>Npr. `0 2 * * *` znači svaki dan u 02:00.</small>
                         </label>
                         <label>
                           Retencija
@@ -2297,7 +2325,20 @@ export function App() {
                               })
                             }
                           />
+                          <small>Broj kopija koje ostaju na serveru.</small>
                         </label>
+                      </div>
+                      <div class="backup-preset-list">
+                        {backupSchedulePresets.map((preset) => (
+                          <button
+                            key={preset.value}
+                            type="button"
+                            class="secondary small-action"
+                            onClick={() => setBackupPreset(preset.value)}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
                       </div>
                       <div class="backup-schedule-status">
                         <span>
@@ -2312,8 +2353,8 @@ export function App() {
                     <div class="empty-card">Učitavam raspored backupova...</div>
                   )}
                   <div class="backup-actions">
-                    <button type="button" class="primary" onClick={downloadRecipeBackup}>
-                      Stvori novi backup
+                    <button type="button" class="primary" onClick={createServerBackup}>
+                      Stvori backup na serveru
                     </button>
                     <button type="button" class="secondary" onClick={saveBackupSchedule} disabled={!backupSchedule}>
                       Spremi raspored

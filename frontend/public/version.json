@@ -1,7 +1,7 @@
 {
-  "version": "0.9.1",
+  "version": "0.9.2",
   "changes": [
-    "Audit sada prikazuje tablicu sa stupcima za datum, radnju, korisnika, IP, preglednik i operativni sustav.",
-    "Svaka audit radnja sada nosi detalje po ID-u za lakše praćenje u bazi."
+    "Backup se sada stvara na serveru jednim klikom, a preuzimanje je odvojeno u povijesti backupova.",
+    "GitHub Actions sada automatski testira, gradi i deploya app na server bez ručnog deploya."
   ]
 }

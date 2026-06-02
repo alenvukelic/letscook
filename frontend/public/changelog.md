@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.9.2
+
+- Backup se sada prvo sprema na server, a preuzimanje je odvojeno kroz povijest backupova.
+- Automatizacija backupova je jasnija i nudi prijedloge rasporeda umjesto samo sirovog cron polja.
+- GitHub Actions sada testira, gradi i deploya aplikaciju na server automatski.
+
 ## 0.9.1
 
 - Audit je prebačen u tablicu s filtrima po stupcima i sortiranjem.

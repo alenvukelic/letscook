@@ -132,6 +132,16 @@ cd frontend
 npm run build
 ```
 
+## CI/CD
+
+Pushes to `main` are built and deployed automatically through GitHub Actions.
+
+- Backend lint and tests run on the workflow runner
+- Frontend build runs on the workflow runner
+- A successful `main` push syncs the repository to `ubuntu-dev` over SSH and runs the server update script there
+
+Manual deployment is no longer needed for normal releases.
+
 ## Legal Documents
 
 - Privacy policy: `legal/privacy.md`

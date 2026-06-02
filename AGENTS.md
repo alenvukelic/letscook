@@ -12,8 +12,9 @@
 - Use the initial product, API, and database notes below as the default starting blueprint unless later code or user instructions override them.
 
 ## Workflow Rules
-- Until product version `1.0.0`, completed code changes should be committed locally, pushed to GitHub, and deployed to `ubuntu-dev` without waiting for an extra confirmation, unless the user explicitly says not to.
-- `commit` or `komit` still explicitly means push work to GitHub, but the current standing instruction is to push and update `ubuntu-dev` after each completed change batch until `1.0.0`.
+- Until product version `1.0.0`, completed code changes should be committed locally and pushed to GitHub after the user confirms the release version, unless the user explicitly says not to.
+- GitHub Actions now handles the automated deploy to `ubuntu-dev` on `main` pushes, so the repository should stay CI/CD-ready rather than relying on manual server updates.
+- `commit` or `komit` still explicitly means push work to GitHub.
 - Versioning should also create the matching GitHub tag for the release commit when a new semantic version is declared.
 - Use semantic three-part versioning as `major.minor.patch`, for example `0.2.0`, and keep user-visible version/changelog information current in the application footer.
 - Before committing any completed change batch, propose the intended semantic version to the user and allow them to correct it; commit only after the version is confirmed or corrected.
@@ -39,7 +40,7 @@
 ## Git Remote
 - GitHub repository: `https://github.com/alenvukelic/letscook`
 - Primary branch is `main`.
-- Until product version `1.0.0`, completed local work should be pushed to GitHub and deployed to `ubuntu-dev` as described in Workflow Rules.
+- Until product version `1.0.0`, completed local work should be pushed to GitHub and then deployed automatically to `ubuntu-dev` by GitHub Actions as described in Workflow Rules.
 
 ## Product Constraints
 - Legal documents live in `legal/privacy.md`, `legal/terms.md`, `legal/image-rights.md`, and `legal/moderation.md`.

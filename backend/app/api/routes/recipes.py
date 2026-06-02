@@ -4,6 +4,7 @@ import re
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
@@ -559,6 +560,52 @@ async def backup_recipes(
     )
     await session.commit()
     return FileResponse(destination, media_type="application/zip", filename=destination.name)
+
+
+@router.post("/backups", response_model=BackupFileEntry, status_code=status.HTTP_201_CREATED)
+async def create_backup_on_server(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> BackupFileEntry:
+    if not user_can_backup_recipes(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can create full recipe backups",
+        )
+
+    destination, metadata = await create_recipe_backup_file(
+        session,
+        trigger="manual",
+        reason="manual server backup",
+    )
+    schedule = load_backup_schedule()
+    cleanup_backup_retention(schedule.retention_count)
+    await log_action(
+        session,
+        code="recipes.backup_created",
+        actor_user_id=current_user.id,
+        target_user_id=current_user.id,
+        request=request,
+        extra={
+            "table": "recipes",
+            "record_id": None,
+            "backup_file": destination.name,
+            "backup_version": 1,
+            "recipe_count": metadata.get("recipe_count", 0),
+        },
+    )
+    await session.commit()
+    return BackupFileEntry(
+        filename=destination.name,
+        created_at=datetime.fromisoformat(str(metadata["created_at"])),
+        updated_at=datetime.fromisoformat(str(metadata["updated_at"])),
+        byte_size=int(metadata["byte_size"]),
+        recipe_count=int(metadata["recipe_count"]),
+        trigger=str(metadata["trigger"]),
+        reason=str(metadata.get("reason")) if metadata.get("reason") is not None else None,
+        download_url=f"/api/recipes/backups/{destination.name}",
+    )
 
 
 @router.get("/backups", response_model=list[BackupFileEntry])

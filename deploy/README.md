@@ -93,7 +93,7 @@ Recommended first-run flow:
 
 ## GitHub Auto-Deploy
 
-If you enable GitHub deploy mode, the installer can prepare:
+If you enable GitHub deploy mode, the installer can prepare the server for GitHub-driven updates:
 
 - a dedicated deploy user
 - deploy SSH key for cloning the repository
@@ -102,13 +102,17 @@ If you enable GitHub deploy mode, the installer can prepare:
 
 For a public repository, you can keep the clone method on HTTPS and skip the GitHub deploy key step.
 
-The installer prints the public key you must add in GitHub.
+The installer prints the public key you must add in GitHub when the server should pull from GitHub itself.
 
-Typical GitHub setup:
+GitHub Actions now handles the normal deployment path for Letscook:
 
-1. add the printed public key as a repository deploy key with read access
-2. use the same server and deploy user in your GitHub Actions workflow
-3. run the server-side helper through SSH:
+1. add an SSH key for the Actions workflow as a repository secret
+2. set the workflow variables for the server host, user, port, and checkout path
+3. let the workflow sync the repository to the server and run the server-side helper through SSH
+
+The server no longer needs to be manually updated after each release.
+
+Manual server refresh is still possible through:
 
 ```bash
 sudo bash /opt/letscook-repo/deploy/update.sh

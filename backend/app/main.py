@@ -14,7 +14,7 @@ from app.services.guest_logs import record_guest_request
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="0.9.1",
+        version="0.9.2",
         description="LetsCook API foundation",
     )
 
