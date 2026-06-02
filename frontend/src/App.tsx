@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.9.3";
+const appVersion = "0.9.4";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
