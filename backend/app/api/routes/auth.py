@@ -65,7 +65,12 @@ async def login(
         actor_user_id=user.id,
         target_user_id=user.id,
         request=request,
-        extra={"email": user.email},
+        extra={
+            "user_id": user.id,
+            "email": user.email,
+            "display_name": user.display_name,
+            "role": user.role.value,
+        },
     )
     await session.commit()
     return TokenResponse(access_token=access_token, user=serialize_user(user))
@@ -112,7 +117,12 @@ async def register(
         actor_user_id=user.id,
         target_user_id=user.id,
         request=request,
-        extra={"email": user.email},
+        extra={
+            "user_id": user.id,
+            "email": user.email,
+            "display_name": user.display_name,
+            "role": user.role.value,
+        },
     )
     await session.commit()
     await session.refresh(user)
@@ -162,6 +172,9 @@ async def update_me(
         target_user_id=user.id,
         request=request,
         extra={
+            "table": "users",
+            "record_id": user.id,
+            "user_id": user.id,
             "before": before,
             "after": {"email": email, "display_name": display_name, "avatar_url": avatar_url},
         },
@@ -199,7 +212,7 @@ async def change_password(
         actor_user_id=user.id,
         target_user_id=user.id,
         request=request,
-        extra={},
+        extra={"table": "users", "record_id": user.id, "user_id": user.id},
     )
     await session.commit()
     return serialize_user(user)

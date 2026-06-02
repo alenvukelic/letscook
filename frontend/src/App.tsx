@@ -24,7 +24,7 @@ const tokenStorageKey = "letscook.accessToken";
 const tokenSessionKey = "letscook.sessionAccessToken";
 const languageStorageKey = "letscook.language";
 const versionReloadStorageKey = "letscook.lastVersionReload";
-const appVersion = "0.9.0";
+const appVersion = "0.9.1";
 const lowlight = createLowlight(common);
 
 type Role = "user" | "moderator" | "administrator" | "superadmin";
@@ -148,6 +148,17 @@ type VersionInfo = {
   changes: string[];
 };
 
+type AuditSortBy = "datetime" | "action" | "user" | "ip" | "browser" | "operatingSystem";
+
+type AuditFilters = {
+  datetime: string;
+  action: string;
+  user: string;
+  ip: string;
+  browser: string;
+  operatingSystem: string;
+};
+
 type BackupSchedule = {
   enabled: boolean;
   cron_expression: string;
@@ -180,6 +191,7 @@ type AuditAction = {
   ip_address: string | null;
   code: string;
   description: string;
+  detail: string;
   actor: AuditActor | null;
   target: AuditActor | null;
   extra: Record<string, unknown>;
@@ -196,6 +208,16 @@ type GuestRequest = {
   browser: string | null;
   operating_system: string | null;
   device_type: string | null;
+};
+
+type AuditRow = {
+  id: string;
+  datetime: string;
+  action: string;
+  user: string;
+  ip: string;
+  browser: string;
+  operatingSystem: string;
 };
 
 type Route =
@@ -386,6 +408,50 @@ function formatBytes(value: number): string {
     return `${(value / 1024).toFixed(1)} KB`;
   }
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function normalizeFilterValue(value: string): string {
+  return value.trim().toLocaleLowerCase("hr-HR");
+}
+
+function getAuditBrowser(extra: Record<string, unknown>): string {
+  return typeof extra.browser === "string" ? extra.browser : "";
+}
+
+function getAuditOperatingSystem(extra: Record<string, unknown>): string {
+  return typeof extra.operating_system === "string" ? extra.operating_system : "";
+}
+
+function buildAuditRows(actions: AuditAction[], guests: GuestRequest[]): AuditRow[] {
+  return [
+    ...actions.map((entry) => ({
+      id: `action-${entry.id}`,
+      datetime: entry.created_at,
+      action: entry.detail,
+      user: entry.actor?.display_name ?? "",
+      ip: entry.ip_address ?? "",
+      browser: getAuditBrowser(entry.extra),
+      operatingSystem: getAuditOperatingSystem(entry.extra),
+    })),
+    ...guests.map((entry) => ({
+      id: `guest-${entry.id}`,
+      datetime: entry.created_at,
+      action: `guest.request ${entry.method} ${entry.path}`,
+      user: "",
+      ip: entry.ip_address ?? "",
+      browser: entry.browser ?? "",
+      operatingSystem: entry.operating_system ?? "",
+    })),
+  ];
+}
+
+function compareAuditRows(left: AuditRow, right: AuditRow, sortBy: AuditSortBy): number {
+  if (sortBy === "datetime") {
+    return new Date(left.datetime).getTime() - new Date(right.datetime).getTime();
+  }
+  return String(left[sortBy] ?? "").localeCompare(String(right[sortBy] ?? ""), "hr", {
+    sensitivity: "base",
+  });
 }
 
 function formatServing(value: number | null): string {
@@ -815,6 +881,16 @@ export function App() {
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [loadingAudit, setLoadingAudit] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>({
+    datetime: "",
+    action: "",
+    user: "",
+    ip: "",
+    browser: "",
+    operatingSystem: "",
+  });
+  const [auditSortBy, setAuditSortBy] = useState<AuditSortBy>("datetime");
+  const [auditSortDirection, setAuditSortDirection] = useState<SortDirection>("desc");
   const [saving, setSaving] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -862,6 +938,27 @@ export function App() {
     }
     return sortDirection === "asc" ? comparison : -comparison;
   });
+  const auditRows = buildAuditRows(auditActions, guestRequests)
+    .filter((row) => {
+      const datetime = row.datetime.toLocaleLowerCase("hr-HR");
+      const action = row.action.toLocaleLowerCase("hr-HR");
+      const user = row.user.toLocaleLowerCase("hr-HR");
+      const ip = row.ip.toLocaleLowerCase("hr-HR");
+      const browser = row.browser.toLocaleLowerCase("hr-HR");
+      const operatingSystem = row.operatingSystem.toLocaleLowerCase("hr-HR");
+      return (
+        datetime.includes(normalizeFilterValue(auditFilters.datetime)) &&
+        action.includes(normalizeFilterValue(auditFilters.action)) &&
+        user.includes(normalizeFilterValue(auditFilters.user)) &&
+        ip.includes(normalizeFilterValue(auditFilters.ip)) &&
+        browser.includes(normalizeFilterValue(auditFilters.browser)) &&
+        operatingSystem.includes(normalizeFilterValue(auditFilters.operatingSystem))
+      );
+    })
+    .sort((left, right) => {
+      const comparison = compareAuditRows(left, right, auditSortBy);
+      return auditSortDirection === "asc" ? comparison : -comparison;
+    });
   const profileAreaRef = useRef<HTMLDivElement>(null);
   const menuAreaRef = useRef<HTMLDivElement>(null);
   const languageAreaRef = useRef<HTMLDivElement>(null);
@@ -1180,6 +1277,15 @@ export function App() {
     } finally {
       setLoadingAudit(false);
     }
+  }
+
+  function toggleAuditSort(column: AuditSortBy) {
+    if (auditSortBy === column) {
+      setAuditSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setAuditSortBy(column);
+    setAuditSortDirection(column === "datetime" ? "desc" : "asc");
   }
 
   async function loadRecipeDetail(recipeId: number) {
@@ -2241,52 +2347,91 @@ export function App() {
               ) : route.name === "management" && managementMode === "audit" ? (
                 <div class="panel audit-panel">
                   <h2>Audit zapis</h2>
-                  <p>Prikazuje posljednje prijave, izmjene recepata, reakcije korisnika i zahtjeve gostiju.</p>
-                  <div class="audit-columns">
-                    <section>
-                      <h3>Radnje korisnika</h3>
-                      {loadingAudit ? (
-                        <div class="empty-card">Učitavam audit zapis...</div>
-                      ) : auditActions.length ? (
-                        <div class="audit-list">
-                          {auditActions.map((entry) => (
-                            <article key={entry.id} class="audit-row">
-                              <strong>{entry.code}</strong>
-                              <span>{formatDate(entry.created_at)}</span>
-                              <small>
-                                {entry.actor?.display_name ?? "-"}
-                                {entry.target?.display_name ? ` → ${entry.target.display_name}` : ""}
-                                {entry.ip_address ? ` · ${entry.ip_address}` : ""}
-                              </small>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <div class="empty-card">Nema audit zapisa.</div>
-                      )}
-                    </section>
-                    <section>
-                      <h3>Gosti i uređaji</h3>
-                      {loadingAudit ? (
-                        <div class="empty-card">Učitavam log gostiju...</div>
-                      ) : guestRequests.length ? (
-                        <div class="audit-list">
-                          {guestRequests.map((entry) => (
-                            <article key={entry.id} class="audit-row">
-                              <strong>{entry.method} {entry.path}</strong>
-                              <span>{formatDate(entry.created_at)}</span>
-                              <small>
-                                {entry.browser ?? "Nepoznati preglednik"} · {entry.operating_system ?? "Nepoznat OS"} · {entry.device_type ?? "nepoznat uređaj"}
-                                {entry.ip_address ? ` · ${entry.ip_address}` : ""}
-                              </small>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <div class="empty-card">Nema guest log zapisa.</div>
-                      )}
-                    </section>
+                  <p>Prikazuje prijave, izmjene, korisnike, goste i detalje po ID-u.</p>
+                  <div class="audit-toolbar">
+                    <button type="button" class="secondary small-action" onClick={() => setAuditFilters({ datetime: "", action: "", user: "", ip: "", browser: "", operatingSystem: "" })}>
+                      Očisti filtre
+                    </button>
+                    <span class="management-note">Zapisa: {auditRows.length}</span>
                   </div>
+                  {loadingAudit ? (
+                    <div class="empty-card">Učitavam audit zapis...</div>
+                  ) : auditRows.length ? (
+                    <div class="audit-table-wrap">
+                      <table class="audit-table">
+                        <thead>
+                          <tr>
+                            <th>
+                              <button type="button" class="audit-sort-button" onClick={() => toggleAuditSort("datetime")}>
+                                Datetime{auditSortBy === "datetime" ? (auditSortDirection === "asc" ? " ▲" : " ▼") : ""}
+                              </button>
+                            </th>
+                            <th>
+                              <button type="button" class="audit-sort-button" onClick={() => toggleAuditSort("action")}>
+                                Radnja{auditSortBy === "action" ? (auditSortDirection === "asc" ? " ▲" : " ▼") : ""}
+                              </button>
+                            </th>
+                            <th>
+                              <button type="button" class="audit-sort-button" onClick={() => toggleAuditSort("user")}>
+                                Korisnik{auditSortBy === "user" ? (auditSortDirection === "asc" ? " ▲" : " ▼") : ""}
+                              </button>
+                            </th>
+                            <th>
+                              <button type="button" class="audit-sort-button" onClick={() => toggleAuditSort("ip")}>
+                                IP{auditSortBy === "ip" ? (auditSortDirection === "asc" ? " ▲" : " ▼") : ""}
+                              </button>
+                            </th>
+                            <th>
+                              <button type="button" class="audit-sort-button" onClick={() => toggleAuditSort("browser")}>
+                                Browser{auditSortBy === "browser" ? (auditSortDirection === "asc" ? " ▲" : " ▼") : ""}
+                              </button>
+                            </th>
+                            <th>
+                              <button type="button" class="audit-sort-button" onClick={() => toggleAuditSort("operatingSystem")}>
+                                OS{auditSortBy === "operatingSystem" ? (auditSortDirection === "asc" ? " ▲" : " ▼") : ""}
+                              </button>
+                            </th>
+                          </tr>
+                          <tr class="audit-filter-row">
+                            <th>
+                              <input value={auditFilters.datetime} onInput={(event) => setAuditFilters((current) => ({ ...current, datetime: (event.currentTarget as HTMLInputElement).value }))} placeholder="Filter" />
+                            </th>
+                            <th>
+                              <input value={auditFilters.action} onInput={(event) => setAuditFilters((current) => ({ ...current, action: (event.currentTarget as HTMLInputElement).value }))} placeholder="Filter" />
+                            </th>
+                            <th>
+                              <input value={auditFilters.user} onInput={(event) => setAuditFilters((current) => ({ ...current, user: (event.currentTarget as HTMLInputElement).value }))} placeholder="Filter" />
+                            </th>
+                            <th>
+                              <input value={auditFilters.ip} onInput={(event) => setAuditFilters((current) => ({ ...current, ip: (event.currentTarget as HTMLInputElement).value }))} placeholder="Filter" />
+                            </th>
+                            <th>
+                              <input value={auditFilters.browser} onInput={(event) => setAuditFilters((current) => ({ ...current, browser: (event.currentTarget as HTMLInputElement).value }))} placeholder="Filter" />
+                            </th>
+                            <th>
+                              <input value={auditFilters.operatingSystem} onInput={(event) => setAuditFilters((current) => ({ ...current, operatingSystem: (event.currentTarget as HTMLInputElement).value }))} placeholder="Filter" />
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {auditRows.map((entry) => (
+                            <tr key={entry.id}>
+                              <td>{formatDate(entry.datetime)}</td>
+                              <td>
+                                <strong>{entry.action}</strong>
+                              </td>
+                              <td>{entry.user}</td>
+                              <td>{entry.ip}</td>
+                              <td>{entry.browser}</td>
+                              <td>{entry.operatingSystem}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div class="empty-card">Nema audit zapisa.</div>
+                  )}
                 </div>
               ) : route.name === "management" && managementMode === "users" ? (
                 <div class="user-management-list panel">

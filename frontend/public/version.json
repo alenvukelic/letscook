@@ -1,7 +1,7 @@
 {
-  "version": "0.9.0",
+  "version": "0.9.1",
   "changes": [
-    "Backupovi se sada spremaju na server i mogu se ponovno preuzeti iz povijesti.",
-    "Upravljanje sada prikazuje audit zapise i log gostujućih zahtjeva."
+    "Audit sada prikazuje tablicu sa stupcima za datum, radnju, korisnika, IP, preglednik i operativni sustav.",
+    "Svaka audit radnja sada nosi detalje po ID-u za lakše praćenje u bazi."
   ]
 }

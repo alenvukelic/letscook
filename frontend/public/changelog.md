@@ -1,5 +1,11 @@
 # LetsCook Changelog
 
+## 0.9.1
+
+- Audit je prebačen u tablicu s filtrima po stupcima i sortiranjem.
+- Svaka radnja sada nosi detalje po ID-u za lakše praćenje u bazi.
+- Audit prikazuje i preglednik te operativni sustav za prijave i goste.
+
 ## 0.9.0
 
 - Backupovi se sada spremaju na server i ostaju dostupni u povijesti.

@@ -20,6 +20,7 @@ class ActionLogEntry(BaseModel):
     ip_address: str | None
     code: str
     description: str
+    detail: str
     actor: ActionActor | None
     target: ActionActor | None
     extra: dict[str, object]

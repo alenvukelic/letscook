@@ -721,10 +721,16 @@ h3 {
 
 .backup-schedule-grid,
 .backup-schedule-status,
-.backup-actions,
-.audit-columns {
+.backup-actions {
   display: grid;
   gap: 12px;
+}
+
+.audit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
 
 .backup-schedule-grid {
@@ -747,14 +753,58 @@ h3 {
   align-items: center;
 }
 
-.backup-history-list,
-.audit-list {
+.backup-history-list {
   display: grid;
   gap: 10px;
 }
 
-.backup-history-row,
-.audit-row {
+.audit-table-wrap {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 920px;
+}
+
+.audit-table th,
+.audit-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(238, 111, 47, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.audit-table thead th {
+  position: sticky;
+  top: 0;
+  background: #fffaf6;
+  z-index: 1;
+}
+
+.audit-table th input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.audit-sort-button {
+  padding: 0;
+  border: 0;
+  color: #6f4527;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+}
+
+.audit-filter-row th {
+  position: static;
+  background: #fff8f2;
+}
+
+.backup-history-row {
   display: grid;
   gap: 6px;
   padding: 12px 14px;
@@ -763,26 +813,19 @@ h3 {
   background: rgba(255, 250, 244, 0.76);
 }
 
-.backup-history-row div,
-.audit-row {
+.backup-history-row div {
   min-width: 0;
 }
 
 .backup-history-row strong,
-.audit-row strong {
+.audit-table td strong {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .backup-history-row span,
-.backup-history-row small,
-.audit-row span,
-.audit-row small {
+.backup-history-row small {
   color: #8a6047;
-}
-
-.audit-columns {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .recipe-card-meta {

@@ -14,6 +14,19 @@ from app.services.guest_logs import list_guest_requests
 router = APIRouter(prefix="/audit")
 
 
+def format_action_detail(code: str, extra: dict[str, object]) -> str:
+    parts = [code]
+    for key in ("record_id", "recipe_id", "user_id", "target_user_id", "media_id"):
+        value = extra.get(key)
+        if value is not None:
+            parts.append(f"{key}={value}")
+    if extra.get("table"):
+        parts.append(f"table={extra['table']}")
+    if extra.get("backup_file"):
+        parts.append(f"file={extra['backup_file']}")
+    return " | ".join(parts)
+
+
 def require_audit_access(actor: User) -> None:
     if actor.role not in {UserRole.administrator, UserRole.superadmin}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Audit access is restricted")
@@ -47,6 +60,7 @@ async def list_actions(
                 ip_address=str(action_log.ip_address) if action_log.ip_address is not None else None,
                 code=code,
                 description=description,
+                detail=format_action_detail(code, action_log.extra or {}),
                 actor=(
                     ActionActor(
                         id=actor_row.id,

@@ -124,7 +124,13 @@ async def update_user_role(
             actor_user_id=actor.id,
             target_user_id=target.id,
             request=request,
-            extra={"before": before.value, "after": payload.role.value},
+            extra={
+                "table": "users",
+                "record_id": target.id,
+                "target_user_id": target.id,
+                "before": before.value,
+                "after": payload.role.value,
+            },
         )
         await session.commit()
         await session.refresh(target)
@@ -162,7 +168,7 @@ async def reset_user_password(
         actor_user_id=actor.id,
         target_user_id=target.id,
         request=request,
-        extra={"table": "users", "record_id": target.id},
+        extra={"table": "users", "record_id": target.id, "target_user_id": target.id},
     )
     await session.commit()
     await session.refresh(target)
@@ -196,7 +202,14 @@ async def update_user_ban(
             actor_user_id=actor.id,
             target_user_id=target.id,
             request=request,
-            extra={"before": before, "after": payload.banned, "reason": payload.reason},
+            extra={
+                "table": "users",
+                "record_id": target.id,
+                "target_user_id": target.id,
+                "before": before,
+                "after": payload.banned,
+                "reason": payload.reason,
+            },
         )
         await session.commit()
         await session.refresh(target)

@@ -549,7 +549,13 @@ async def backup_recipes(
         actor_user_id=current_user.id,
         target_user_id=current_user.id,
         request=request,
-        extra={"recipe_count": metadata.get("recipe_count", 0), "backup_file": destination.name},
+        extra={
+            "table": "recipes",
+            "record_id": None,
+            "backup_file": destination.name,
+            "backup_version": 1,
+            "recipe_count": metadata.get("recipe_count", 0),
+        },
     )
     await session.commit()
     return FileResponse(destination, media_type="application/zip", filename=destination.name)
@@ -713,7 +719,14 @@ async def upload_recipe_image(
         actor_user_id=current_user.id,
         target_user_id=current_user.id,
         request=request,
-        extra={"table": "media", "record_id": media.id, "filename": stored_filename},
+        extra={
+            "table": "media",
+            "record_id": media.id,
+            "media_id": media.id,
+            "filename": stored_filename,
+            "mime_type": media.mime_type,
+            "byte_size": media.byte_size,
+        },
     )
     await session.commit()
     return ImageUploadResponse(url=media_url(storage_path))
@@ -812,7 +825,15 @@ async def create_recipe(
         actor_user_id=current_user.id,
         target_user_id=current_user.id,
         request=request,
-        extra={"table": "recipes", "record_id": recipe.id},
+        extra={
+            "table": "recipes",
+            "record_id": recipe.id,
+            "recipe_id": recipe.id,
+            "author_id": recipe.author_id,
+            "category_id": recipe.category_id,
+            "title": recipe.title,
+            "language": recipe.language,
+        },
     )
     await session.commit()
     return await recipe_detail(
@@ -866,7 +887,15 @@ async def update_recipe(
         actor_user_id=current_user.id,
         target_user_id=recipe.author_id,
         request=request,
-        extra={"table": "recipes", "record_id": recipe.id},
+        extra={
+            "table": "recipes",
+            "record_id": recipe.id,
+            "recipe_id": recipe.id,
+            "author_id": recipe.author_id,
+            "category_id": recipe.category_id,
+            "title": recipe.title,
+            "language": recipe.language,
+        },
     )
     await session.commit()
     return await recipe_detail(
@@ -903,7 +932,13 @@ async def update_recipe_visibility(
             actor_user_id=current_user.id,
             target_user_id=recipe.author_id,
             request=request,
-            extra={"table": "recipes", "record_id": recipe.id, "hidden": payload.hidden},
+            extra={
+                "table": "recipes",
+                "record_id": recipe.id,
+                "recipe_id": recipe.id,
+                "author_id": recipe.author_id,
+                "hidden": payload.hidden,
+            },
         )
 
     if payload.deleted is not None:
@@ -920,7 +955,13 @@ async def update_recipe_visibility(
             actor_user_id=current_user.id,
             target_user_id=recipe.author_id,
             request=request,
-            extra={"table": "recipes", "record_id": recipe.id, "deleted": payload.deleted},
+            extra={
+                "table": "recipes",
+                "record_id": recipe.id,
+                "recipe_id": recipe.id,
+                "author_id": recipe.author_id,
+                "deleted": payload.deleted,
+            },
         )
 
     if payload.verified is not None:
@@ -937,7 +978,13 @@ async def update_recipe_visibility(
             actor_user_id=current_user.id,
             target_user_id=recipe.author_id,
             request=request,
-            extra={"table": "recipes", "record_id": recipe.id, "verified": payload.verified},
+            extra={
+                "table": "recipes",
+                "record_id": recipe.id,
+                "recipe_id": recipe.id,
+                "author_id": recipe.author_id,
+                "verified": payload.verified,
+            },
         )
 
     await session.commit()
@@ -980,7 +1027,13 @@ async def hard_delete_recipe(
         actor_user_id=current_user.id,
         target_user_id=recipe.author_id,
         request=request,
-        extra={"table": "recipes", "record_id": recipe.id, "title": recipe.title},
+        extra={
+            "table": "recipes",
+            "record_id": recipe.id,
+            "recipe_id": recipe.id,
+            "author_id": recipe.author_id,
+            "title": recipe.title,
+        },
     )
     await session.delete(recipe)
     await session.commit()
@@ -1013,7 +1066,14 @@ async def like_recipe(
             actor_user_id=current_user.id,
             target_user_id=recipe.author_id,
             request=request,
-            extra={"table": "favorites", "record_id": recipe_id},
+            extra={
+                "table": "favorites",
+                "record_id": recipe_id,
+                "recipe_id": recipe_id,
+                "author_id": recipe.author_id,
+                "user_id": current_user.id,
+                "action": "saved",
+            },
         )
     await session.commit()
     return await recipe_detail(
@@ -1044,7 +1104,14 @@ async def unlike_recipe(
             actor_user_id=current_user.id,
             target_user_id=recipe.author_id,
             request=request,
-            extra={"table": "favorites", "record_id": recipe_id},
+            extra={
+                "table": "favorites",
+                "record_id": recipe_id,
+                "recipe_id": recipe_id,
+                "author_id": recipe.author_id,
+                "user_id": current_user.id,
+                "action": "removed",
+            },
         )
     await session.commit()
     return await recipe_detail(
@@ -1080,7 +1147,14 @@ async def rate_recipe(
         actor_user_id=current_user.id,
         target_user_id=recipe.author_id,
         request=request,
-        extra={"table": "ratings", "record_id": recipe_id, "rating": payload.rating},
+        extra={
+            "table": "ratings",
+            "record_id": recipe_id,
+            "recipe_id": recipe_id,
+            "author_id": recipe.author_id,
+            "user_id": current_user.id,
+            "rating": payload.rating,
+        },
     )
     await session.commit()
     return await recipe_detail(
