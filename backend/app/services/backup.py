@@ -15,7 +15,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import async_session_factory
-from app.models import Category, Favorite, Ingredient, IngredientTranslation, Media, Rating, Recipe, RecipeIngredient, User
+from app.models import (
+    Category,
+    Favorite,
+    Ingredient,
+    IngredientTranslation,
+    Media,
+    Rating,
+    Recipe,
+    RecipeIngredient,
+    User,
+)
 from app.schemas.audit import BackupFileEntry, BackupSchedule
 
 
@@ -166,7 +176,9 @@ def _read_backup_metadata(path: Path) -> dict[str, object] | None:
 def list_backup_files() -> list[BackupFileEntry]:
     root = ensure_backup_storage()
     entries: list[BackupFileEntry] = []
-    for zip_path in sorted(root.glob("backup_*.zip"), key=lambda item: item.stat().st_mtime, reverse=True):
+    for zip_path in sorted(
+        root.glob("backup_*.zip"), key=lambda item: item.stat().st_mtime, reverse=True
+    ):
         metadata = _read_backup_metadata(_backup_metadata_path(zip_path.name)) or {}
         created_at = datetime.fromtimestamp(zip_path.stat().st_mtime, tz=UTC)
         entries.append(
@@ -277,14 +289,17 @@ async def build_recipe_backup_archive(session: AsyncSession, destination: Path) 
 
 Backup folder: {root_folder}
 
-Each recipe markdown file starts with a `<!-- letscook-backup ... -->` JSON block. Use that metadata to restore the author, category, recipe fields, ingredients, ratings, favorites and media links.
+    Each recipe markdown file starts with a `<!-- letscook-backup ... -->` JSON block.
+    Use that metadata to restore the author, category, recipe fields, ingredients, ratings,
+    favorites and media links.
 
 Restore procedure:
 1. Extract the ZIP.
 2. For each category folder, parse every `.md` file.
 3. Read the JSON block between `<!-- letscook-backup` and `-->`.
 4. Recreate or map the author by `author.email` and the category by `category.slug` or `category.name`.
-5. Copy image files from the same folder into local media storage, create `media` rows, and replace Markdown image paths with the restored `/media/...` URLs.
+    5. Copy image files from the same folder into local media storage, create `media` rows,
+       and replace Markdown image paths with the restored `/media/...` URLs.
 6. Insert/update `recipes`, then restore `recipe_ingredients`, ratings and favorites where the referenced users exist.
 7. Set `main_media` from the first media item marked as `is_main` or from the first Markdown image.
 
@@ -442,7 +457,9 @@ async def run_scheduled_backup_once() -> Path | None:
     now = datetime.now(UTC).replace(second=0, microsecond=0)
     if not cron_matches(schedule.cron_expression, now):
         return None
-    if schedule.last_run_at is not None and schedule.last_run_at.astimezone(UTC).replace(second=0, microsecond=0) == now:
+    if schedule.last_run_at is not None and (
+        schedule.last_run_at.astimezone(UTC).replace(second=0, microsecond=0) == now
+    ):
         return None
 
     async with async_session_factory() as session:

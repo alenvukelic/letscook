@@ -1,5 +1,6 @@
-import contextlib
 import asyncio
+import contextlib
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,7 @@ from app.services.guest_logs import record_guest_request
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
-        version="0.9.2",
+        version="0.9.3",
         description="LetsCook API foundation",
     )
 
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
             record_guest_request(request, response.status_code if response is not None else 500)
 
     app.include_router(api_router, prefix=settings.api_prefix)
+    Path(settings.media_root_path).mkdir(parents=True, exist_ok=True)
     app.mount("/media", StaticFiles(directory=settings.media_root_path), name="media")
 
     @app.on_event("startup")

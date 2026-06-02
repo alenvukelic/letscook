@@ -1,7 +1,7 @@
 {
-  "version": "0.9.2",
+  "version": "0.9.3",
   "changes": [
-    "Backup se sada stvara na serveru jednim klikom, a preuzimanje je odvojeno u povijesti backupova.",
-    "GitHub Actions sada automatski testira, gradi i deploya app na server bez ručnog deploya."
+    "Greška s media direktorijem na CI runneru je ispravljena pa deploy više ne pada pri pokretanju backend testa.",
+    "Server sada sam stvara nedostajući /var/media direktorij prije podizanja aplikacije."
   ]
 }

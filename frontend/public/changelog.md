@@ -1,5 +1,10 @@
 # LetsCook Changelog
 
+## 0.9.3
+
+- Popravljen je deploy jer backend sada sam stvara media mapu prije pokretanja testa.
+- Aplikacija se više ne ruši na CI runneru zbog nedostatne `/var/media` mape.
+
 ## 0.9.2
 
 - Backup se sada prvo sprema na server, a preuzimanje je odvojeno kroz povijest backupova.

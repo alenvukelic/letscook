@@ -10,7 +10,6 @@ from urllib.parse import urlsplit, urlunsplit
 import paramiko
 import uvicorn
 
-
 ENV_FILES = (Path(__file__).with_name(".env.local"), Path(__file__).with_name(".env"))
 
 
